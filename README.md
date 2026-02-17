@@ -1,63 +1,185 @@
-# HAARRAY CORE — Laravel Starter Kit
+# HAARRAY CORE
 
-## HariLog | In memory of Hari Bahadur Bhujel
+### Laravel Starter Kit
 
----
-
-## What This Is
-
-`haarray-core` is a Laravel starter kit that contains a complete
-design system, auth pages, a lightweight SPA engine, and scaffolding
-to kick off any Haarray application (HariLog, HariCMS, etc.).
-
-**Every future Haarray app starts here.**
+**HariLog — In memory of Hari Bahadur Bhujel**
 
 ---
 
-## Quick Setup
+## Overview
 
-1. Create Laravel project
-2. Install Breeze (or your preferred auth)
-3. Copy `haarray-core` files into your project (css, js, views, config, controllers)
-4. Install `php-ai/php-ml` if you want the PHP ML examples
-5. Create migrations from `database/migrations/all_migrations_reference.php`
-6. `php artisan migrate`
+`haarray-core` is the official foundation layer for all Haarray applications.
 
-(You already have the full step-by-step in your kit; keep that.)
+It provides:
 
----
+* A modern design system (dark + light mode)
+* Authentication scaffolding integration
+* A lightweight progressive SPA engine
+* Reusable Blade layout structure
+* UI utilities (toasts, modals, loaders, helpers)
 
-## Design & UX Goals
-
-- Minimal, modern design tokens (dark + light, CSS variables)
-- Progressive enhancement — pages work if JS is disabled
-- Native, app-like UX using a tiny SPA layer:
-  - History pushState navigation
-  - Partial page loads (replace `#h-spa-content`)
-  - AJAX form submission for auth & common forms
-  - Toasts, modals, skeleton loaders, optimistic UI
-- Reusable Blade layout so every app can reuse the same visual system
+Every future Haarray product — HariLog, HariCMS, SaaS tools — begins here.
 
 ---
 
-## JavaScript API (highlight)
+## Philosophy
+
+Haarray Core follows three strict principles:
+
+### 1️⃣ Progressive First
+
+All routes work normally without JavaScript.
+
+### 2️⃣ Zero Controller Changes
+
+You do **not** need to return JSON.
+Standard Laravel responses just work:
+
+* `return view(...)`
+* `return redirect(...)`
+* `return back()->withErrors(...)`
+
+The SPA layer enhances them automatically.
+
+### 3️⃣ One System, Many Apps
+
+One design system shared across all Haarray products.
+
+---
+
+## Features
+
+### 🎨 Design System
+
+* CSS variables
+* Dark & light themes
+* Minimal modern layout
+* Sidebar layout
+* Auth-ready pages
+
+### ⚡ Lightweight SPA Engine
+
+* History `pushState` navigation
+* Partial page swaps (`#h-spa-content`)
+* AJAX form submission
+* CSRF auto handling
+* Validation error handling
+* Toast notifications
+* Works without changing controllers
+
+### 🧩 UI Components
+
+* Toast system (`HToast`)
+* Modal system (`HModal`)
+* Theme manager (`HTheme`)
+* SPA navigator (`HSPA`)
+* API helper (`HApi`)
+* Utility helpers (`HUtils`)
+
+---
+
+## Installation
+
+### 1. Create Laravel Project
+
+```bash
+laravel new your-project
+```
+
+### 2. Install Auth (Recommended: Breeze)
+
+```bash
+php artisan breeze:install
+npm install && npm run build
+```
+
+### 3. Copy haarray-core files
+
+Copy:
+
+* `public/css/haarray.css`
+* `public/js/haarray.js`
+* Blade layout files
+* Config files
+* Docs folder
+
+### 4. (Optional) Install PHP ML
+
+```bash
+composer require php-ai/php-ml
+```
+
+### 5. Migrate
+
+```bash
+php artisan migrate
+```
+
+---
+
+## JavaScript API
+
+### Theme
 
 ```js
-// THEME
-HTheme.apply("dark"); // or 'light'
+HTheme.apply("dark");
+HTheme.apply("light");
+```
 
-// TOAST
+---
+
+### Toast
+
+```js
 HToast.success("Saved!");
+HToast.error("Something went wrong");
+HToast.warning("Be careful");
+HToast.info("Heads up");
+```
 
-// MODAL
+---
+
+### Modal
+
+```js
 HModal.open("modal-id");
+HModal.close("modal-id");
+```
 
-// SPA NAV
+---
+
+### SPA Navigation
+
+```js
 HSPA.navigate("/transactions");
+```
 
-// API (CSRF-aware)
-HApi.post("/transactions", { amount: 200 }, { success(){}, error(){} });
-HApi.submitForm($('#my-form'), { success(){}, error(){} });
+---
 
-// UTILITIES
+### API Helper (CSRF aware)
+
+```js
+HApi.post("/transactions", { amount: 200 }, {
+  success(res){},
+  error(err){}
+});
+```
+
+---
+
+### Form Submission
+
+```js
+HApi.submitForm($('#my-form'), {
+  success(){},
+  error(){}
+});
+```
+
+---
+
+### Utilities
+
+```js
 HUtils.formatNPR(5200);
+```
