@@ -54,8 +54,8 @@ One design system shared across all Haarray products.
 ## 1️⃣ Clone Repository
 
 ```bash
-git clone https://github.com/your-org/haarray-core.git
-cd haarray-core
+git clone https://github.com/haarray/core.git
+cd core
 ```
 
 ---
