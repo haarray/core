@@ -8,108 +8,79 @@
 
 ## Overview
 
-`haarray-core` is the official foundation layer for all Haarray applications.
+`haarray-core` is the official Laravel foundation for all Haarray applications.
 
-It provides:
+It includes:
 
-* A modern design system (dark + light mode)
-* Authentication scaffolding integration
-* A lightweight progressive SPA engine
-* Reusable Blade layout structure
-* UI utilities (toasts, modals, loaders, helpers)
+* Modern design system (Dark + Light)
+* Authentication-ready layout
+* Lightweight progressive SPA engine
+* Reusable Blade structure
+* Toasts, modals, helpers
+* Zero-controller-change enhancement layer
 
-Every future Haarray product — HariLog, HariCMS, SaaS tools — begins here.
+Every Haarray product — HariLog, HariCMS, SaaS tools — starts here.
 
 ---
 
 ## Philosophy
 
-Haarray Core follows three strict principles:
-
-### 1️⃣ Progressive First
+### Progressive First
 
 All routes work normally without JavaScript.
 
-### 2️⃣ Zero Controller Changes
+### Zero Controller Changes
 
 You do **not** need to return JSON.
-Standard Laravel responses just work:
 
-* `return view(...)`
-* `return redirect(...)`
-* `return back()->withErrors(...)`
+Standard Laravel responses work automatically:
 
-The SPA layer enhances them automatically.
+```php
+return view(...);
+return redirect(...);
+return back()->withErrors(...);
+```
 
-### 3️⃣ One System, Many Apps
+The SPA layer enhances them without modifying controllers.
+
+### One System, Many Apps
 
 One design system shared across all Haarray products.
 
 ---
 
-## Features
+# 🚀 Quick Installation
 
-### 🎨 Design System
+## 1️⃣ Clone Repository
 
-* CSS variables
-* Dark & light themes
-* Minimal modern layout
-* Sidebar layout
-* Auth-ready pages
-
-### ⚡ Lightweight SPA Engine
-
-* History `pushState` navigation
-* Partial page swaps (`#h-spa-content`)
-* AJAX form submission
-* CSRF auto handling
-* Validation error handling
-* Toast notifications
-* Works without changing controllers
-
-### 🧩 UI Components
-
-* Toast system (`HToast`)
-* Modal system (`HModal`)
-* Theme manager (`HTheme`)
-* SPA navigator (`HSPA`)
-* API helper (`HApi`)
-* Utility helpers (`HUtils`)
+```bash
+git clone https://github.com/your-org/haarray-core.git
+cd haarray-core
+```
 
 ---
 
-## Installation
-
-### 1. Create Laravel Project
+## 2️⃣ Install Dependencies
 
 ```bash
-laravel new your-project
+composer install
+npm install
 ```
 
-### 2. Install Auth (Recommended: Breeze)
+---
+
+## 3️⃣ Setup Environment
 
 ```bash
-php artisan breeze:install
-npm install && npm run build
+cp .env.example .env
+php artisan key:generate
 ```
 
-### 3. Copy haarray-core files
+Update your database credentials in `.env`.
 
-Copy:
+---
 
-* `public/css/haarray.css`
-* `public/js/haarray.js`
-* Blade layout files
-* Config files
-* Docs folder
-
-### 4. (Optional) Install PHP ML
-
-```bash
-composer require php-ai/php-ml
-```
-
-### 5. Migrate
+## 4️⃣ Run Migrations
 
 ```bash
 php artisan migrate
@@ -117,9 +88,86 @@ php artisan migrate
 
 ---
 
-## JavaScript API
+## 5️⃣ Link Storage
 
-### Theme
+```bash
+php artisan storage:link
+```
+
+---
+
+## 6️⃣ Build Assets
+
+```bash
+npm run build
+```
+
+For development:
+
+```bash
+npm run dev
+```
+
+---
+
+## 7️⃣ Start Server
+
+```bash
+php artisan serve
+```
+
+Visit:
+
+```
+http://127.0.0.1:8000
+```
+
+You are ready.
+
+---
+
+# Features
+
+## 🎨 Design System
+
+* CSS variables
+* Dark & light themes
+* Sidebar layout
+* Responsive
+* Auth-ready
+* Minimal and modern
+
+---
+
+## ⚡ Lightweight SPA Engine
+
+* History `pushState`
+* Partial page replacement (`#h-spa-content`)
+* AJAX form interception
+* CSRF auto-handling
+* Validation error handling
+* Toast notifications
+* Redirect detection
+* Progressive fallback
+
+Works with standard Laravel responses.
+
+---
+
+## 🧩 UI Components
+
+* `HTheme`
+* `HToast`
+* `HModal`
+* `HSPA`
+* `HApi`
+* `HUtils`
+
+---
+
+# JavaScript API
+
+## Theme
 
 ```js
 HTheme.apply("dark");
@@ -128,7 +176,7 @@ HTheme.apply("light");
 
 ---
 
-### Toast
+## Toast
 
 ```js
 HToast.success("Saved!");
@@ -139,7 +187,7 @@ HToast.info("Heads up");
 
 ---
 
-### Modal
+## Modal
 
 ```js
 HModal.open("modal-id");
@@ -148,7 +196,7 @@ HModal.close("modal-id");
 
 ---
 
-### SPA Navigation
+## SPA Navigation
 
 ```js
 HSPA.navigate("/transactions");
@@ -156,7 +204,7 @@ HSPA.navigate("/transactions");
 
 ---
 
-### API Helper (CSRF aware)
+## API Helper
 
 ```js
 HApi.post("/transactions", { amount: 200 }, {
@@ -167,7 +215,7 @@ HApi.post("/transactions", { amount: 200 }, {
 
 ---
 
-### Form Submission
+## Form Submission
 
 ```js
 HApi.submitForm($('#my-form'), {
@@ -178,8 +226,51 @@ HApi.submitForm($('#my-form'), {
 
 ---
 
-### Utilities
+## Utilities
 
 ```js
 HUtils.formatNPR(5200);
 ```
+
+---
+
+# 📖 Documentation
+
+Detailed SPA engine documentation:
+
+👉 **See `docs/SPA.md`**
+
+This explains:
+
+* How navigation interception works
+* How redirects are handled
+* How validation errors are parsed
+* Lifecycle hooks
+* When not to use SPA
+* Progressive fallback strategy
+
+---
+
+# Project Structure
+
+```
+haarray-core/
+├── app/
+├── public/
+├── resources/
+│   └── views/
+├── routes/
+├── docs/
+│   └── SPA.md
+├── composer.json
+└── README.md
+```
+
+---
+
+# Built For
+
+* HariLog
+* HariCMS
+
+---
