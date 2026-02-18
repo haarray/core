@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ asset('css/haarray.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/haarray.starter.css') }}">
   @yield('styles')
 </head>
 <body>
@@ -50,6 +51,13 @@
       <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
     </svg>
     Transactions
+    <span class="h-nav-badge">Soon</span>
+  </a>
+  <a data-spa href="{{ route('docs.starter') }}" class="h-nav-item">
+    <svg class="h-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+    </svg>
+    Docs
     <span class="h-nav-badge">Soon</span>
   </a>
   <a href="#" class="h-nav-item" onclick="HToast.info('Coming soon!');return false;">
@@ -184,9 +192,12 @@
 {{-- FAB --}}
 @yield('fab')
 
+{{-- Confirm Modal --}}
+<x-confirm-modal />
 {{-- Scripts --}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 <script src="{{ asset('js/haarray.js') }}"></script>
+<script src="{{ asset('js/haarray.plugins.js') }}"></script>
 @yield('scripts')
 
 </body>

@@ -1,6 +1,4 @@
 <?php
-// FILE: routes/web.php
-// Replace your entire routes/web.php with this.
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -12,6 +10,8 @@ Route::get('/login',  [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.post');
 Route::get('/register',  [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register'])->name('register.post');
+
+Route::get('/docs/starter-kit', fn() => view('docs.starter-kit'))->name('docs.starter');
 
 // ── Protected routes ──────────────────────────────────────
 Route::middleware('auth')->group(function () {

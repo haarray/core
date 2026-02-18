@@ -1,0 +1,105 @@
+/* -------------------------
+   Utilities & Tokens
+   ------------------------- */
+   :root {
+    /* fallback tokens; the main haarray.css already defines these. */
+    --hl-gold: var(--gold, #f5a623);
+    --hl-teal: var(--teal, #2dd4bf);
+    --hl-red:  var(--red, #f87171);
+    --bd-1: rgba(255,255,255,.06);
+    --glass: rgba(255,255,255,.03);
+    --fm-mono: 'JetBrains Mono', monospace;
+    --fm-head: 'Syne', sans-serif;
+  }
+
+  /* small helpers */
+  .h-row { display:flex; gap:12px; align-items:center; }
+  .h-muted { color:var(--t3); }
+  .kv { font-family:var(--fm-mono); font-size:13px; }
+
+  /* -------------------------
+     Confirm modal (HConfirm)
+     ------------------------- */
+  [data-h-confirm] {
+    display:none;
+    position:fixed; inset:0; z-index:1200;
+    align-items:center; justify-content:center;
+    background: rgba(6,6,9,.6); backdrop-filter: blur(4px);
+  }
+  [data-h-confirm].show { display:flex; }
+  [data-h-confirm] .h-modal {
+    width: 100%; max-width:520px; border-radius:14px;
+    background: var(--bg4); border:1px solid var(--bd2);
+    box-shadow: 0 30px 70px rgba(0,0,0,.5);
+    transform: translateY(6px);
+  }
+  [data-h-confirm] .h-modal-head { padding:18px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--bd); }
+  [data-h-confirm] .h-modal-body { padding:18px 20px; color:var(--t2); font-size:14px; line-height:1.5; }
+  [data-h-confirm] .h-modal-footer { padding:14px 20px; display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--bd); }
+  [data-h-confirm] .h-modal-title { font-family:var(--fm-head); font-weight:700; font-size:16px; }
+
+  /* button sizing inside modal */
+  [data-h-confirm] .h-btn { padding:9px 14px; font-size:13px; border-radius:10px; }
+
+  /* -------------------------
+     Editor (.h-editor)
+     ------------------------- */
+  .h-editor-wrap { display:block; margin-bottom:14px; }
+  .h-editor-toolbar {
+    display:flex; gap:8px; margin-bottom:8px; align-items:center;
+    background:transparent;
+  }
+  .h-editor-toolbar button {
+    border:1px solid var(--bd); background:transparent; padding:6px 8px; border-radius:8px;
+    font-family:var(--fm-mono); cursor:pointer;
+  }
+  .h-editor {
+    min-height:120px; padding:12px; border-radius:10px; background:var(--bg0);
+    border:1px solid var(--bd); font-size:14px; color:var(--t1);
+    outline-offset:3px; overflow:auto;
+  }
+  .h-editor:focus { box-shadow: 0 4px 22px rgba(0,0,0,.25); border-color:var(--hl-gold); }
+  .h-editor.is-focused { border-color:var(--hl-teal); }
+  .h-editor--bare { border-style:dashed; }
+
+  /* small helper for labels */
+  .h-editor-label { font-family:var(--fm-mono); font-size:12px; color:var(--t3); margin-bottom:6px; }
+
+  /* -------------------------
+     SVG icons & sprite
+     ------------------------- */
+  /* Use .h-icon (svg element) or .h-icon-inline (container for inline svg) */
+  .h-icon { width:16px; height:16px; vertical-align:middle; display:inline-block; }
+  .h-icon--lg { width:20px; height:20px; }
+  .h-icon-inline { display:inline-flex; align-items:center; justify-content:center; }
+
+  /* Add small accessible visually-hidden helper */
+  .sr-only { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+  /* -------------------------
+     SVG Pie (small, responsive)
+     ------------------------- */
+  .h-svg-pie { display:block; width:100%; height:120px; }
+  .h-svg-pie svg { width:100%; height:100%; display:block; }
+  .h-pie-legend { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; font-size:13px; }
+  .h-pie-legend .leg { display:flex; gap:8px; align-items:center; }
+  .h-pie-legend .sw { width:12px; height:12px; border-radius:3px; display:inline-block; }
+
+  /* -------------------------
+     Docs page styles
+     ------------------------- */
+  .hl-docs { max-width:1100px; margin:0 auto; padding:22px; background:transparent; }
+  .hl-docs .doc-head { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:18px; }
+  .hl-docs .doc-title { font-family:var(--fm-head); font-weight:800; font-size:22px; }
+  .hl-docs .doc-sub { color:var(--t2); margin-top:6px; }
+  .hl-docs .doc-grid { display:grid; grid-template-columns: 260px 1fr; gap:18px; align-items:start; }
+  .hl-docs .doc-toc { position:sticky; top:86px; align-self:start; background:var(--bg2); padding:12px; border-radius:12px; border:1px solid var(--bd); }
+  .hl-docs .doc-content { padding:12px; background:var(--bg2); border-radius:12px; border:1px solid var(--bd); }
+  .hl-docs pre { background:var(--bg0); padding:12px; border-radius:8px; overflow:auto; border:1px solid var(--bd); font-family:var(--fm-mono); font-size:13px; }
+  .hl-docs code { font-family:var(--fm-mono); font-size:13px; background:rgba(0,0,0,.03); padding:2px 6px; border-radius:4px; }
+
+  /* Responsive tweaks */
+  @media (max-width:900px) {
+    .hl-docs .doc-grid { grid-template-columns: 1fr; }
+    .hl-docs .doc-toc { position:relative; top:auto; }
+  }
