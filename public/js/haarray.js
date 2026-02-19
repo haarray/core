@@ -4,6 +4,9 @@
   const HCore = {
     emit(name, detail = {}) {
       document.dispatchEvent(new CustomEvent(name, { detail }));
+      if (window.HDebug && typeof window.HDebug.captureEvent === 'function') {
+        window.HDebug.captureEvent(name, detail);
+      }
     },
   };
 
@@ -619,7 +622,9 @@
   /* ── DEBUG STORE ─────────────────────────────────────── */
   const HDebug = {
     key: 'h_client_errors',
+    maxItems: 120,
     _bound: false,
+    _isOpen: false,
 
     init() {
       if (this._bound) return;
@@ -631,6 +636,7 @@
           source: event.filename || '',
           line: event.lineno || 0,
           time: new Date().toISOString(),
+          path: window.location.pathname + window.location.search,
         });
       });
 
@@ -642,20 +648,64 @@
           source: '',
           line: 0,
           time: new Date().toISOString(),
+          path: window.location.pathname + window.location.search,
         });
       });
 
+      $(document).on('click', '[data-debug-toggle]', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.toggle();
+      });
+
+      $(document).on('click', '[data-debug-close]', (event) => {
+        event.preventDefault();
+        this.close();
+      });
+
+      $(document).on('click', '[data-debug-refresh]', (event) => {
+        event.preventDefault();
+        this.render();
+        HToast.info('Debug console refreshed.');
+      });
+
+      $(document).on('click', '[data-debug-clear]', (event) => {
+        event.preventDefault();
+        this.clear();
+        HToast.success('Debug console cleared.');
+      });
+
+      $(document).on('click', (event) => {
+        const $tray = $('#h-debug-tray');
+        if (!$tray.length || !$tray.hasClass('show')) return;
+        if ($(event.target).closest('#h-debug-tray, [data-debug-toggle]').length) return;
+        this.close();
+      });
+
+      $(document).on('keydown', (event) => {
+        if (event.key === 'Escape') this.close();
+      });
+
+      this.render();
       this._bound = true;
     },
 
     push(entry) {
       try {
         const items = this.read();
-        items.unshift(entry);
-        localStorage.setItem(this.key, JSON.stringify(items.slice(0, 30)));
+        items.unshift({
+          type: String(entry.type || 'info'),
+          message: String(entry.message || 'Debug event'),
+          source: String(entry.source || ''),
+          line: Number(entry.line || 0),
+          time: String(entry.time || new Date().toISOString()),
+          path: String(entry.path || (window.location.pathname + window.location.search)),
+        });
+        localStorage.setItem(this.key, JSON.stringify(items.slice(0, this.maxItems)));
       } catch (error) {
         // Ignore localStorage failures.
       }
+      this.render();
     },
 
     read() {
@@ -666,6 +716,105 @@
       } catch (error) {
         return [];
       }
+    },
+
+    clear() {
+      try {
+        localStorage.removeItem(this.key);
+      } catch (error) {
+        // Ignore localStorage failures.
+      }
+      this.render();
+    },
+
+    open() {
+      const tray = document.getElementById('h-debug-tray');
+      if (!tray) return;
+      this._isOpen = true;
+      tray.classList.add('show');
+      tray.setAttribute('aria-hidden', 'false');
+      this.render();
+    },
+
+    close() {
+      const tray = document.getElementById('h-debug-tray');
+      if (!tray) return;
+      this._isOpen = false;
+      tray.classList.remove('show');
+      tray.setAttribute('aria-hidden', 'true');
+    },
+
+    toggle() {
+      if (this._isOpen) {
+        this.close();
+        return;
+      }
+      this.open();
+    },
+
+    captureEvent(name, detail = {}) {
+      if (name !== 'hspa:error') return;
+      this.push({
+        type: 'hspa',
+        message: String(detail.message || 'SPA navigation error'),
+        source: String(detail.url || ''),
+        line: Number(detail.status || 0),
+        time: new Date().toISOString(),
+        path: window.location.pathname + window.location.search,
+      });
+    },
+
+    render() {
+      const list = document.getElementById('h-debug-list');
+      if (!list) return;
+
+      const items = this.read();
+      if (!items.length) {
+        list.innerHTML = `
+          <div class="h-notif-empty">
+            <i class="fa-regular fa-square-check"></i>
+            <span>No client-side errors captured.</span>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = items.map((item) => {
+        const type = this._escape(item.type || 'info').toLowerCase();
+        const tone = ['error', 'promise', 'hspa'].includes(type) ? type : 'info';
+        const message = this._escape(item.message || 'Debug event');
+        const source = this._escape(item.source || '');
+        const line = Number(item.line || 0);
+        const path = this._escape(item.path || '');
+        const time = this._escape(this._formatTime(item.time));
+        const sourceLabel = source !== '' ? source + (line > 0 ? ':' + line : '') : (path || '-');
+
+        return `
+          <article class="h-debug-item h-debug-${tone}">
+            <div class="h-debug-row">
+              <span class="h-debug-badge">${tone.toUpperCase()}</span>
+              <span class="h-debug-time">${time}</span>
+            </div>
+            <div class="h-debug-message">${message}</div>
+            <div class="h-debug-meta">${sourceLabel}</div>
+          </article>
+        `;
+      }).join('');
+    },
+
+    _formatTime(value) {
+      const date = new Date(String(value || ''));
+      if (Number.isNaN(date.getTime())) return String(value || '');
+      return date.toLocaleString();
+    },
+
+    _escape(input) {
+      return String(input ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     },
   };
 
@@ -828,6 +977,7 @@
       this.bindLinks();
       this.bindForms();
       this.highlightActiveNav(window.location.pathname + window.location.search);
+      this._normalizeSidebarBrand();
 
       window.addEventListener('popstate', () => {
         this.load(window.location.pathname + window.location.search);
@@ -1107,6 +1257,7 @@
       this._syncRegion(doc, '#h-page-fab');
       this._syncRegion(doc, '#h-page-scripts');
       this._syncRegion(doc, '#h-sidebar-brand');
+      this._normalizeSidebarBrand();
       this._syncFavicon(doc);
       this._syncThemeColor(doc);
     },
@@ -1144,6 +1295,8 @@
         'pwaEnabled',
         'swUrl',
         'iconSpriteUrl',
+        'fileManagerListUrl',
+        'fileManagerUploadUrl',
         'faviconUrl',
         'themeColor',
       ];
@@ -1219,10 +1372,29 @@
 
     _rehydrate(payload = {}) {
       updateClock();
+      if (window.HModal && typeof window.HModal.closeAll === 'function') {
+        window.HModal.closeAll();
+      }
       HSidebar.close();
       HNotify.close();
+      if (window.HDebug && typeof window.HDebug.close === 'function') {
+        window.HDebug.close();
+      }
       HCore.emit('hspa:afterSwap', payload);
       HCore.emit('hspa:afterLoad', payload);
+    },
+
+    _normalizeSidebarBrand() {
+      const logo = document.querySelector('#h-sidebar-brand .h-brand-logo');
+      if (!logo) return;
+      logo.setAttribute('width', '38');
+      logo.setAttribute('height', '38');
+      logo.style.width = '38px';
+      logo.style.height = '38px';
+      logo.style.minWidth = '38px';
+      logo.style.minHeight = '38px';
+      logo.style.maxWidth = '38px';
+      logo.style.maxHeight = '38px';
     },
 
     highlightActiveNav(pathnameWithQuery) {

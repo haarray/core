@@ -692,6 +692,8 @@
   ---------------------------*/
   const HEditor = {
     selector: '[data-editor], .h-editor',
+    dialogId: 'h-editor-tool-modal',
+    _dialogReady: false,
     toolbarGroups: [
       [
         {
@@ -742,6 +744,7 @@
     stateCommands: ['bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList', 'justifyLeft', 'justifyCenter', 'justifyRight'],
 
     init(root) {
+      this._ensureDialog();
       const ctx = root && root.querySelectorAll ? root : document;
       ctx.querySelectorAll(this.selector).forEach((el) => this.setup(el));
     },
@@ -873,34 +876,59 @@
       if (!editorEl || !cmd) return;
 
       if (cmd === 'createLink') {
-        const href = this._promptUrl();
-        if (!href) return;
+        const savedRange = this._saveSelection(editorEl);
+        this._openToolModal('link').then((payload) => {
+          if (!payload || !payload.url) return;
+          if (!this._isSafeUrl(payload.url)) return;
 
-        const selection = window.getSelection();
-        const hasSelection = selection && !selection.isCollapsed;
-        if (hasSelection) {
-          document.execCommand('createLink', false, href);
-        } else {
-          const label = window.prompt('Link text', href) || href;
-          this._insertHtml(editorEl, `<a href="${this._escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${this._escapeHtml(label)}</a>`);
-        }
+          editorEl.focus();
+          this._restoreSelection(editorEl, savedRange);
+
+          const selection = window.getSelection();
+          const hasSelection = selection && !selection.isCollapsed;
+          if (hasSelection) {
+            document.execCommand('createLink', false, payload.url);
+          } else {
+            const label = String(payload.text || payload.url);
+            this._insertHtml(editorEl, `<a href="${this._escapeAttribute(payload.url)}" target="_blank" rel="noopener noreferrer">${this._escapeHtml(label)}</a>`);
+          }
+
+          this._finalize(editorEl);
+        });
+        return;
       } else if (cmd === 'insertImage') {
-        const src = this._promptUrl('Enter image URL');
-        if (!src) return;
-        const alt = window.prompt('Image alt text (optional)', '') || '';
-        this._insertHtml(
-          editorEl,
-          `<img src="${this._escapeAttribute(src)}" alt="${this._escapeAttribute(alt)}">`
-        );
+        const savedRange = this._saveSelection(editorEl);
+        this._openToolModal('image').then((payload) => {
+          if (!payload || !payload.src) return;
+          if (!this._isSafeUrl(payload.src)) return;
+
+          editorEl.focus();
+          this._restoreSelection(editorEl, savedRange);
+          this._insertHtml(
+            editorEl,
+            `<img src="${this._escapeAttribute(payload.src)}" alt="${this._escapeAttribute(payload.alt || '')}">`
+          );
+          this._finalize(editorEl);
+        });
+        return;
       } else if (cmd === 'insertTable') {
-        const rows = Number(window.prompt('Rows', '2') || 2);
-        const cols = Number(window.prompt('Columns', '2') || 2);
-        const safeRows = Number.isFinite(rows) ? Math.max(1, Math.min(10, Math.floor(rows))) : 2;
-        const safeCols = Number.isFinite(cols) ? Math.max(1, Math.min(8, Math.floor(cols))) : 2;
-        const bodyRows = Array.from({ length: safeRows })
-          .map(() => `<tr>${Array.from({ length: safeCols }).map(() => '<td><br></td>').join('')}</tr>`)
-          .join('');
-        this._insertHtml(editorEl, `<table><tbody>${bodyRows}</tbody></table><p><br></p>`);
+        const savedRange = this._saveSelection(editorEl);
+        this._openToolModal('table').then((payload) => {
+          if (!payload) return;
+          const rows = Number(payload.rows || 2);
+          const cols = Number(payload.cols || 2);
+          const safeRows = Number.isFinite(rows) ? Math.max(1, Math.min(10, Math.floor(rows))) : 2;
+          const safeCols = Number.isFinite(cols) ? Math.max(1, Math.min(8, Math.floor(cols))) : 2;
+          const bodyRows = Array.from({ length: safeRows })
+            .map(() => `<tr>${Array.from({ length: safeCols }).map(() => '<td><br></td>').join('')}</tr>`)
+            .join('');
+
+          editorEl.focus();
+          this._restoreSelection(editorEl, savedRange);
+          this._insertHtml(editorEl, `<table><tbody>${bodyRows}</tbody></table><p><br></p>`);
+          this._finalize(editorEl);
+        });
+        return;
       } else if (cmd === 'inlineCode') {
         this._toggleInlineCode(editorEl);
       } else if (cmd === 'formatBlock') {
@@ -909,6 +937,10 @@
         document.execCommand(cmd, false, arg || null);
       }
 
+      this._finalize(editorEl);
+    },
+
+    _finalize(editorEl) {
       this._sanitize(editorEl);
       editorEl.dispatchEvent(new Event('input', { bubbles: true }));
       this._syncHiddenField(editorEl, editorEl.dataset.editorName || editorEl.getAttribute('name') || '');
@@ -1083,6 +1115,286 @@
       selection.addRange(range);
     },
 
+    _saveSelection(editorEl) {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return null;
+
+      const range = selection.getRangeAt(0);
+      if (!editorEl.contains(range.commonAncestorContainer)) return null;
+      return range.cloneRange();
+    },
+
+    _restoreSelection(editorEl, range) {
+      if (!range) return;
+      const selection = window.getSelection();
+      if (!selection) return;
+      editorEl.focus();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    },
+
+    _ensureDialog() {
+      if (this._dialogReady) return;
+
+      let modal = document.getElementById(this.dialogId);
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = this.dialogId;
+        modal.className = 'h-modal-overlay h-editor-modal';
+        modal.innerHTML = `
+          <div class="h-modal h-editor-modal-shell">
+            <div class="h-modal-head">
+              <div class="h-modal-title" data-editor-modal-title>Editor Tool</div>
+              <button type="button" class="h-modal-close" data-editor-modal-close>×</button>
+            </div>
+            <form class="h-modal-body" data-editor-modal-form></form>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal || event.target.closest('[data-editor-modal-close]')) {
+          if (window.HModal) {
+            window.HModal.close(this.dialogId);
+          } else {
+            modal.classList.remove('show');
+          }
+        }
+      });
+
+      this._dialogReady = true;
+    },
+
+    _openToolModal(type) {
+      this._ensureDialog();
+
+      const modal = document.getElementById(this.dialogId);
+      if (!modal) {
+        return Promise.resolve(null);
+      }
+
+      const titleEl = modal.querySelector('[data-editor-modal-title]');
+      const formEl = modal.querySelector('[data-editor-modal-form]');
+      if (!titleEl || !formEl) {
+        return Promise.resolve(null);
+      }
+
+      const config = {
+        link: {
+          title: 'Insert Link',
+          html: `
+            <div class="h-editor-modal-grid">
+              <div>
+                <label class="h-label" style="display:block;">URL</label>
+                <input type="text" class="form-control" name="url" placeholder="https://example.com" required>
+              </div>
+              <div>
+                <label class="h-label" style="display:block;">Text</label>
+                <input type="text" class="form-control" name="text" placeholder="Link text (optional)">
+              </div>
+            </div>
+          `,
+        },
+        image: {
+          title: 'Insert Image',
+          html: `
+            <div class="h-editor-modal-grid">
+              <div>
+                <label class="h-label" style="display:block;">Image URL</label>
+                <input type="text" class="form-control" name="src" placeholder="https://example.com/image.png" required>
+              </div>
+              <div>
+                <label class="h-label" style="display:block;">Alt text</label>
+                <input type="text" class="form-control" name="alt" placeholder="Describe image">
+              </div>
+            </div>
+            <div class="h-editor-fm-wrap">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-editor-fm-toggle>
+                <i class="fa-solid fa-folder-open me-1"></i>
+                Choose From File Manager
+              </button>
+              <div class="h-editor-fm-panel" hidden>
+                <div class="h-editor-fm-head">
+                  <input type="text" class="form-control form-control-sm" placeholder="Search files..." data-editor-fm-search>
+                  <div class="h-editor-fm-upload">
+                    <input type="file" class="form-control form-control-sm" data-editor-fm-file accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.ico,image/*">
+                    <button type="button" class="btn btn-sm btn-primary" data-editor-fm-upload>Upload</button>
+                  </div>
+                </div>
+                <div class="h-editor-fm-grid" data-editor-fm-grid></div>
+              </div>
+            </div>
+          `,
+        },
+        table: {
+          title: 'Insert Table',
+          html: `
+            <div class="h-editor-modal-grid">
+              <div>
+                <label class="h-label" style="display:block;">Rows</label>
+                <input type="number" class="form-control" name="rows" min="1" max="10" value="2" required>
+              </div>
+              <div>
+                <label class="h-label" style="display:block;">Columns</label>
+                <input type="number" class="form-control" name="cols" min="1" max="8" value="2" required>
+              </div>
+            </div>
+          `,
+        },
+      }[type];
+
+      if (!config) return Promise.resolve(null);
+
+      titleEl.textContent = config.title;
+      formEl.innerHTML = `
+        ${config.html}
+        <div class="h-editor-modal-actions">
+          <button type="button" class="btn btn-outline-secondary" data-editor-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Apply</button>
+        </div>
+      `;
+
+      if (type === 'image') {
+        this._bindFileManagerPanel(formEl);
+      }
+
+      if (window.HModal) {
+        window.HModal.open(this.dialogId);
+      } else {
+        modal.classList.add('show');
+      }
+
+      return new Promise((resolve) => {
+        const finish = (payload) => {
+          if (window.HModal) {
+            window.HModal.close(this.dialogId);
+          } else {
+            modal.classList.remove('show');
+          }
+          resolve(payload);
+        };
+
+        formEl.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const formData = new FormData(formEl);
+          const payload = {};
+          formData.forEach((value, key) => {
+            payload[key] = String(value || '').trim();
+          });
+          finish(payload);
+        }, { once: true });
+
+        modal.querySelectorAll('[data-editor-modal-close]').forEach((button) => {
+          button.addEventListener('click', () => finish(null), { once: true });
+        });
+      });
+    },
+
+    _bindFileManagerPanel(formEl) {
+      const panel = formEl.querySelector('.h-editor-fm-panel');
+      const toggle = formEl.querySelector('[data-editor-fm-toggle]');
+      const grid = formEl.querySelector('[data-editor-fm-grid]');
+      const search = formEl.querySelector('[data-editor-fm-search]');
+      const fileInput = formEl.querySelector('[data-editor-fm-file]');
+      const uploadBtn = formEl.querySelector('[data-editor-fm-upload]');
+      const srcInput = formEl.querySelector('input[name="src"]');
+
+      if (!panel || !toggle || !grid || !search || !uploadBtn || !fileInput || !srcInput) return;
+
+      const render = (items) => {
+        if (!Array.isArray(items) || items.length === 0) {
+          grid.innerHTML = '<div class="h-muted" style="font-size:12px;">No files found.</div>';
+          return;
+        }
+
+        grid.innerHTML = items.map((item) => `
+          <button type="button" class="h-editor-fm-item" data-file-url="${this._escapeAttribute(item.url || '')}" title="${this._escapeAttribute(item.name || '')}">
+            <img src="${this._escapeAttribute(item.url || '')}" alt="${this._escapeAttribute(item.name || '')}">
+            <span>${this._escapeHtml(item.name || 'file')}</span>
+          </button>
+        `).join('');
+      };
+
+      const loadItems = (query = '') => {
+        const endpoint = String(document.body.dataset.fileManagerListUrl || '').trim();
+        if (!endpoint) {
+          render([]);
+          return;
+        }
+
+        const params = query ? { q: query } : {};
+        const request = window.HApi && typeof window.HApi.get === 'function'
+          ? window.HApi.get(endpoint, params)
+          : $.ajax({ url: endpoint, method: 'GET', data: params });
+
+        request.done((payload) => {
+          render(Array.isArray(payload.items) ? payload.items : []);
+        }).fail(() => {
+          render([]);
+          if (window.HToast) window.HToast.error('Unable to load media files.');
+        });
+      };
+
+      toggle.addEventListener('click', () => {
+        const isHidden = panel.hasAttribute('hidden');
+        if (isHidden) {
+          panel.removeAttribute('hidden');
+          loadItems('');
+        } else {
+          panel.setAttribute('hidden', 'hidden');
+        }
+      });
+
+      search.addEventListener('input', () => {
+        loadItems(String(search.value || '').trim());
+      });
+
+      grid.addEventListener('click', (event) => {
+        const pick = event.target.closest('.h-editor-fm-item[data-file-url]');
+        if (!pick) return;
+        const url = String(pick.getAttribute('data-file-url') || '');
+        if (!url) return;
+        srcInput.value = url;
+      });
+
+      uploadBtn.addEventListener('click', () => {
+        const endpoint = String(document.body.dataset.fileManagerUploadUrl || '').trim();
+        const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+        if (!endpoint || !file) {
+          if (window.HToast) window.HToast.warning('Choose a file first.');
+          return;
+        }
+
+        const token = String((document.querySelector('meta[name="csrf-token"]') || {}).content || '');
+        const data = new FormData();
+        data.append('file', file);
+        data.append('folder', 'editor');
+
+        $.ajax({
+          url: endpoint,
+          method: 'POST',
+          data,
+          processData: false,
+          contentType: false,
+          headers: token ? { 'X-CSRF-TOKEN': token } : {},
+        }).done((payload) => {
+          const item = payload && payload.item ? payload.item : null;
+          if (item && item.url) {
+            srcInput.value = String(item.url);
+          }
+          fileInput.value = '';
+          loadItems(String(search.value || '').trim());
+          if (window.HToast) window.HToast.success('File uploaded.');
+        }).fail((xhr) => {
+          const message = xhr && xhr.responseJSON && xhr.responseJSON.message
+            ? xhr.responseJSON.message
+            : 'Upload failed.';
+          if (window.HToast) window.HToast.error(message);
+        });
+      });
+    },
+
     _promptUrl(label = 'Enter URL') {
       const value = (window.prompt(label, 'https://') || '').trim();
       if (!value) return '';
@@ -1241,7 +1553,7 @@
     },
 
     _color(index) {
-      const colors = ['#f5a623', '#2dd4bf', '#60a5fa', '#f87171', '#a78bfa', '#34d399'];
+      const colors = ['#2f7df6', '#2dd4bf', '#60a5fa', '#f87171', '#a78bfa', '#34d399'];
       return colors[index % colors.length];
     },
   };

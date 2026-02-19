@@ -75,6 +75,22 @@ class NotificationController extends Controller
             abort(403, 'You are not allowed to broadcast notifications.');
         }
 
+        $rawChannels = $request->input('channels', []);
+        if (is_string($rawChannels)) {
+            $rawChannels = [$rawChannels];
+        }
+        if (!is_array($rawChannels)) {
+            $rawChannels = [];
+        }
+        $channels = array_values(array_unique(array_filter(array_map(
+            fn ($channel) => trim((string) $channel),
+            $rawChannels
+        ))));
+        if (empty($channels)) {
+            $channels = ['in_app'];
+        }
+        $request->merge(['channels' => $channels]);
+
         $availableRoles = $this->availableRoleNames();
 
         $validated = $request->validate([
@@ -84,7 +100,7 @@ class NotificationController extends Controller
             'url' => ['nullable', 'url', 'max:255'],
             'audience' => ['required', Rule::in(['all', 'admins', 'role', 'users'])],
             'role' => ['nullable', 'string', Rule::in($availableRoles)],
-            'channels' => ['required', 'array', 'min:1'],
+            'channels' => ['array', 'min:1'],
             'channels.*' => [Rule::in(['in_app', 'telegram'])],
             'user_ids' => ['nullable', 'array'],
             'user_ids.*' => ['integer', 'exists:users,id'],
@@ -115,7 +131,7 @@ class NotificationController extends Controller
         }
 
         $recipients = $query->get();
-        $channels = $validated['channels'];
+        $channels = $validated['channels'] ?? ['in_app'];
         if (in_array('in_app', $channels, true) && !Schema::hasTable('notifications')) {
             return back()->with('error', 'Run migrations first to enable in-app notifications.');
         }

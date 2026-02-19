@@ -4,12 +4,30 @@
 <head>
   @php
     $uiBranding = \App\Support\AppSettings::uiBranding();
-    $brandFavicon = trim((string) ($uiBranding['favicon_url'] ?? ''));
-    $brandLogo = trim((string) ($uiBranding['logo_url'] ?? ''));
-    $brandAppIcon = trim((string) ($uiBranding['app_icon_url'] ?? ''));
-    $themeColor = trim((string) ($uiBranding['theme_color'] ?? '#f5a623'));
+    $resolveUiAsset = static function (?string $value): string {
+      $raw = trim((string) ($value ?? ''));
+      if ($raw === '') {
+        return '';
+      }
+
+      if (preg_match('/^(https?:)?\\/\\//i', $raw) || str_starts_with($raw, 'data:')) {
+        $parsed = parse_url($raw);
+        $path = (string) ($parsed['path'] ?? '');
+        if ($path !== '' && str_contains($path, '/uploads/')) {
+          return url(ltrim($path, '/'));
+        }
+
+        return $raw;
+      }
+
+      return url(ltrim($raw, '/'));
+    };
+    $brandFavicon = $resolveUiAsset((string) ($uiBranding['favicon_url'] ?? ''));
+    $brandLogo = $resolveUiAsset((string) ($uiBranding['logo_url'] ?? ''));
+    $brandAppIcon = $resolveUiAsset((string) ($uiBranding['app_icon_url'] ?? ''));
+    $themeColor = trim((string) ($uiBranding['theme_color'] ?? '#2f7df6'));
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $themeColor)) {
-      $themeColor = '#f5a623';
+      $themeColor = '#2f7df6';
     }
     $brandMark = trim((string) ($uiBranding['brand_mark'] ?? config('haarray.app_initial', 'H')));
     if ($brandMark === '') {
@@ -31,7 +49,7 @@
   <link rel="icon" type="image/x-icon" href="{{ $brandFavicon !== '' ? $brandFavicon : asset('favicon.ico') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
@@ -62,6 +80,8 @@
   data-sw-url="{{ asset('sw.js') }}"
   data-icon-sprite-url="{{ asset('icons/icons.svg') }}"
   data-favicon-url="{{ $brandFavicon !== '' ? $brandFavicon : asset('favicon.ico') }}"
+  data-file-manager-list-url="{{ route('ui.filemanager.index') }}"
+  data-file-manager-upload-url="{{ route('ui.filemanager.upload') }}"
   data-theme-color="{{ $themeColor }}"
 >
 
@@ -143,7 +163,6 @@
     @endcan
     @if(auth()->user()->can('view settings'))
       @php
-        $settingsTab = (string) request()->query('tab', 'settings-app');
         $settingsRouteActive = request()->routeIs('settings.index') || request()->routeIs('settings.users.*') || request()->routeIs('settings.rbac');
       @endphp
       <div
@@ -165,64 +184,44 @@
         </button>
 
         <div class="h-nav-sub">
-          <a
-            data-spa
-            href="{{ route('settings.index', ['tab' => 'settings-app']) }}"
-            data-match-query="tab=settings-app"
-            class="h-nav-sub-item {{ request()->routeIs('settings.index') && $settingsTab === 'settings-app' ? 'active' : '' }}"
-          >
-            <i class="fa-solid fa-palette"></i>
-            App & Branding
-          </a>
-          @if(auth()->user()->can('view users'))
+          @foreach((array) config('menu.settings_nav', []) as $item)
+            @php
+              $permission = (string) ($item['permission'] ?? '');
+              if ($permission !== '' && !auth()->user()->can($permission)) {
+                  continue;
+              }
+
+              $routeName = (string) ($item['route'] ?? '');
+              if ($routeName === '' || !\Illuminate\Support\Facades\Route::has($routeName)) {
+                  continue;
+              }
+
+              $params = is_array($item['params'] ?? null) ? $item['params'] : [];
+              $activeRoute = (string) ($item['active_route'] ?? $routeName);
+              $matchQuery = trim((string) ($item['match_query'] ?? ''));
+              $isActive = request()->routeIs($activeRoute);
+
+              if ($isActive && $matchQuery !== '') {
+                  $queryPairs = array_filter(array_map('trim', explode('&', $matchQuery)));
+                  foreach ($queryPairs as $pair) {
+                      [$key, $value] = array_pad(explode('=', $pair, 2), 2, '');
+                      if ($key !== '' && request()->query($key) !== $value) {
+                          $isActive = false;
+                          break;
+                      }
+                  }
+              }
+            @endphp
             <a
               data-spa
-              href="{{ route('settings.index', ['tab' => 'settings-users']) }}"
-              data-match-query="tab=settings-users"
-              class="h-nav-sub-item {{ request()->routeIs('settings.index') && $settingsTab === 'settings-users' ? 'active' : '' }}"
+              href="{{ route($routeName, $params) }}"
+              @if($matchQuery !== '') data-match-query="{{ $matchQuery }}" @endif
+              class="h-nav-sub-item {{ $isActive ? 'active' : '' }}"
             >
-              <i class="fa-solid fa-users"></i>
-              Users
+              <i class="{{ $item['icon'] ?? 'fa-solid fa-circle' }}"></i>
+              {{ $item['label'] ?? 'Menu' }}
             </a>
-          @endif
-          <a
-            data-spa
-            href="{{ route('settings.index', ['tab' => 'settings-activity']) }}"
-            data-match-query="tab=settings-activity"
-            class="h-nav-sub-item {{ request()->routeIs('settings.index') && $settingsTab === 'settings-activity' ? 'active' : '' }}"
-          >
-            <i class="fa-solid fa-chart-line"></i>
-            Activity
-          </a>
-          @if(auth()->user()->can('manage settings'))
-            <a
-              data-spa
-              href="{{ route('settings.index', ['tab' => 'settings-roles']) }}"
-              data-match-query="tab=settings-roles"
-              class="h-nav-sub-item {{ request()->routeIs('settings.index') && $settingsTab === 'settings-roles' ? 'active' : '' }}"
-            >
-              <i class="fa-solid fa-user-lock"></i>
-              Access & RBAC
-            </a>
-            <a
-              data-spa
-              href="{{ route('settings.index', ['tab' => 'settings-system']) }}"
-              data-match-query="tab=settings-system"
-              class="h-nav-sub-item {{ request()->routeIs('settings.index') && $settingsTab === 'settings-system' ? 'active' : '' }}"
-            >
-              <i class="fa-solid fa-gear"></i>
-              System Config
-            </a>
-            <a
-              data-spa
-              href="{{ route('settings.index', ['tab' => 'settings-diagnostics']) }}"
-              data-match-query="tab=settings-diagnostics"
-              class="h-nav-sub-item {{ request()->routeIs('settings.index') && $settingsTab === 'settings-diagnostics' ? 'active' : '' }}"
-            >
-              <i class="fa-solid fa-stethoscope"></i>
-              Diagnostics
-            </a>
-          @endif
+          @endforeach
         </div>
       </div>
     @endif
@@ -261,6 +260,9 @@
       <button class="h-icon-btn h-notif-toggle" type="button" title="Notifications" data-notif-toggle aria-label="Notifications">
         <i class="fa-solid fa-bell"></i>
         <span class="h-notif-dot is-hidden"></span>
+      </button>
+      <button class="h-icon-btn" type="button" title="Debug Console" data-debug-toggle aria-label="Debug Console">
+        <i class="fa-solid fa-bug"></i>
       </button>
       {{-- Theme toggle --}}
       <button class="h-theme-toggle h-icon-btn" title="Toggle theme">
@@ -307,6 +309,26 @@
       <span>No notifications yet.</span>
     </div>
   </div>
+</div>
+
+{{-- Debug Tray --}}
+<div class="h-debug-tray" id="h-debug-tray" aria-hidden="true">
+  <div class="h-debug-head">
+    <div>
+      <div class="h-notif-title">Debug Console</div>
+      <div class="h-notif-sub">Client errors and diagnostic events</div>
+    </div>
+    <div class="h-row" style="gap:6px;">
+      <button type="button" class="h-icon-btn" data-debug-refresh aria-label="Refresh debug log" title="Refresh">
+        <i class="fa-solid fa-rotate"></i>
+      </button>
+      <button type="button" class="h-icon-btn" data-debug-clear aria-label="Clear debug log" title="Clear">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+      <button type="button" class="h-modal-close" data-debug-close aria-label="Close debug console">×</button>
+    </div>
+  </div>
+  <div class="h-debug-list" id="h-debug-list"></div>
 </div>
 
 {{-- ═══ GLOBAL MODALS ═══ --}}

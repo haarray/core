@@ -80,7 +80,7 @@ class AppSettings
             'logo_url' => self::get('ui.logo_url', ''),
             'favicon_url' => self::get('ui.favicon_url', ''),
             'app_icon_url' => self::get('ui.app_icon_url', ''),
-            'theme_color' => self::get('ui.theme_color', '#f5a623'),
+            'theme_color' => self::get('ui.theme_color', '#2f7df6'),
         ];
     }
 

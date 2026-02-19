@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role;
 use Yajra\DataTables\Facades\DataTables;
@@ -45,7 +46,7 @@ class UiOptionsController extends Controller
 
     private function avatarFor(string $name): string
     {
-        return 'https://ui-avatars.com/api/?name=' . urlencode($name) . '&background=f5a623&color=111111&size=64';
+        return 'https://ui-avatars.com/api/?name=' . urlencode($name) . '&background=2f7df6&color=ffffff&size=64';
     }
 
     public function usersTable(Request $request): JsonResponse
@@ -155,6 +156,87 @@ class UiOptionsController extends Controller
             })
             ->editColumn('created_at', fn (UserActivity $activity) => optional($activity->created_at)->format('Y-m-d H:i:s'))
             ->toJson();
+    }
+
+    public function fileManagerList(Request $request): JsonResponse
+    {
+        if (!$request->user() || !$request->user()->can('view settings')) {
+            abort(403, 'You do not have permission to view media files.');
+        }
+
+        $query = trim((string) $request->query('q', ''));
+        $limit = max(20, min((int) $request->query('limit', 80), 300));
+        $directory = public_path('uploads');
+
+        if (!File::isDirectory($directory)) {
+            return response()->json(['items' => []]);
+        }
+
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'ico'];
+        $files = collect(File::allFiles($directory))
+            ->filter(function ($file) use ($allowedExtensions) {
+                return in_array(strtolower((string) $file->getExtension()), $allowedExtensions, true);
+            })
+            ->when($query !== '', function ($items) use ($query) {
+                return $items->filter(function ($file) use ($query) {
+                    return str_contains(strtolower((string) $file->getFilename()), strtolower($query));
+                });
+            })
+            ->sortByDesc(fn ($file) => (int) $file->getMTime())
+            ->take($limit)
+            ->values();
+
+        $items = $files->map(function ($file) {
+            $absolutePath = (string) $file->getPathname();
+            $relative = str_replace('\\', '/', ltrim(str_replace(public_path(), '', $absolutePath), '/'));
+
+            return [
+                'name' => (string) $file->getFilename(),
+                'path' => $relative,
+                'url' => url($relative),
+                'size_kb' => number_format(((int) $file->getSize()) / 1024, 1),
+                'modified_at' => date('Y-m-d H:i', (int) $file->getMTime()),
+            ];
+        })->all();
+
+        return response()->json(['items' => $items]);
+    }
+
+    public function fileManagerUpload(Request $request): JsonResponse
+    {
+        if (!$request->user() || !$request->user()->can('manage settings')) {
+            abort(403, 'You do not have permission to upload media files.');
+        }
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,gif,svg,ico', 'max:5120'],
+            'folder' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        $folder = trim((string) ($validated['folder'] ?? 'editor'));
+        $folder = preg_replace('/[^a-z0-9_-]/i', '-', $folder) ?: 'editor';
+        $subPath = 'uploads/' . $folder . '/' . now()->format('Y/m');
+        $targetDirectory = public_path($subPath);
+        File::ensureDirectoryExists($targetDirectory, 0775, true);
+
+        $file = $validated['file'];
+        $extension = strtolower((string) ($file->getClientOriginalExtension() ?: $file->extension() ?: 'png'));
+        $safeExtension = preg_replace('/[^a-z0-9]/i', '', $extension) ?: 'png';
+        $filename = now()->format('YmdHis') . '-' . strtolower(str()->random(8)) . '.' . $safeExtension;
+        $file->move($targetDirectory, $filename);
+
+        $relative = $subPath . '/' . $filename;
+
+        return response()->json([
+            'ok' => true,
+            'item' => [
+                'name' => $filename,
+                'path' => $relative,
+                'url' => url($relative),
+                'size_kb' => number_format(((int) File::size(public_path($relative))) / 1024, 1),
+                'modified_at' => now()->format('Y-m-d H:i'),
+            ],
+        ]);
     }
 
     /**

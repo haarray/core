@@ -23,7 +23,7 @@
     'SGD' => 'Singapore Dollar',
     'CHF' => 'Swiss Franc',
   ];
-  $leadAvatar = 'https://ui-avatars.com/api/?name=' . urlencode(auth()->user()->name) . '&background=f5a623&color=111111&size=64';
+  $leadAvatar = 'https://ui-avatars.com/api/?name=' . urlencode(auth()->user()->name) . '&background=2f7df6&color=ffffff&size=64';
 @endphp
 
 <div class="hl-docs">
@@ -97,7 +97,7 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
           <li>Keep page content inside <code>#h-spa-content</code> for partial navigation.</li>
           <li>Include <code>&lt;x-confirm-modal /&gt;</code> once in the layout.</li>
           <li>Add sidebar links for <code>Docs</code> and a single <code>Settings</code> control center route so the team can manage app, users, RBAC, and diagnostics from one place.</li>
-          <li>For Settings navigation, use query-aware URLs like <code>/settings?tab=settings-activity</code> and <code>/settings?tab=settings-roles</code>.</li>
+          <li>For Settings navigation, use query-aware URLs like <code>/settings?tab=settings-activity</code> and dedicated management pages <code>/settings/users</code> / <code>/settings/rbac</code>.</li>
           <li>Use Blade components (<code>&lt;x-icon&gt;</code>, <code>&lt;x-select&gt;</code>, <code>&lt;x-editor&gt;</code>) for consistent scaffolding.</li>
         </ol>
       </section>
@@ -381,7 +381,7 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
         <div class="demo">
           <div
             class="h-svg-pie"
-            data-pie='[{"label":"Savings","value":45,"color":"#34d399"},{"label":"Expense","value":35,"color":"#f5a623"},{"label":"Investments","value":20,"color":"#60a5fa"}]'
+            data-pie='[{"label":"Savings","value":45,"color":"#34d399"},{"label":"Expense","value":35,"color":"#2f7df6"},{"label":"Investments","value":20,"color":"#60a5fa"}]'
           ></div>
         </div>
       </section>

@@ -52,7 +52,7 @@
   {{-- Stat cards --}}
   <div class="h-grid-4">
     <div class="h-stat-card ga">
-      <div class="h-stat-icon" style="background:rgba(245,166,35,.12)">💰</div>
+      <div class="h-stat-icon" style="background:rgba(47,125,246,.12)">💰</div>
       <div class="h-stat-label">Net Worth</div>
       <div class="h-stat-val gold">रू {{ number_format($stats['net_worth']) }}</div>
       <div class="h-stat-chg up">▲ 3.2% this month</div>
@@ -70,7 +70,7 @@
       <div class="h-stat-chg up">▲ Goal: 30% ✓</div>
     </div>
     <div class="h-stat-card">
-      <div class="h-stat-icon" style="background:rgba(245,166,35,.10)">🏦</div>
+      <div class="h-stat-icon" style="background:rgba(47,125,246,.10)">🏦</div>
       <div class="h-stat-label">Idle Cash</div>
       <div class="h-stat-val">रू {{ number_format($stats['idle_cash']) }}</div>
       <div class="h-stat-chg warn">⚡ 2 suggestions</div>
@@ -81,7 +81,7 @@
   <div class="h-grid-2">
     @foreach($suggestions as $s)
     <div class="h-sug-card {{ $s['priority'] === 'high' ? 'high' : '' }}">
-      <div class="h-sug-icon" style="background:{{ $s['priority'] === 'high' ? 'rgba(245,166,35,.10)' : 'rgba(45,212,191,.10)' }}">
+      <div class="h-sug-icon" style="background:{{ $s['priority'] === 'high' ? 'rgba(47,125,246,.10)' : 'rgba(45,212,191,.10)' }}">
         {{ $s['icon'] }}
       </div>
       <div>
@@ -162,7 +162,7 @@
         @endforeach
 
         {{-- Recommendation box --}}
-        <div style="margin-top:14px;padding:11px 13px;background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.20);border-radius:10px;">
+        <div style="margin-top:14px;padding:11px 13px;background:rgba(47,125,246,.06);border:1px solid rgba(47,125,246,.20);border-radius:10px;">
           <div style="font-family:var(--fm);font-size:9.5px;color:var(--gold);letter-spacing:1px;margin-bottom:4px;">⚡ AI RECOMMENDATION</div>
           <div style="font-size:12px;color:var(--t2);line-height:1.6;">Apply for Citizens Bank IPO with your idle cash. Closes in 2 days.</div>
         </div>

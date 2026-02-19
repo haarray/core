@@ -14,14 +14,18 @@ Laravel starter kit for Haarray products with progressive SPA behavior, reusable
 - Yajra DataTables + server-side table endpoints
 - Bootstrap + Font Awesome integration (open source)
 - Dedicated sidebar docs + Settings control center
-- Unified Settings tabs: App & Branding, Users, Roles & Access, Activity, Security, Notifications, System, Diagnostics
-- Reusable Create/Edit user modal form (single form for both actions)
+- Settings tabs for app-level controls: App & Branding, Activity, Security, Notifications, System, Diagnostics
+- Dedicated full pages for `Users` and `Access & RBAC` from sidebar
+- Built-in media/file manager endpoint for editor and branding uploads
+- Editor tools now use modal UI (link/image/table) instead of browser prompts
+- Built-in debug console tray for client errors + SPA failures
+- Sidebar settings entries are configurable in `config/menu.php`
 - UI-based `.env` settings editor for whitelisted keys
 - Optional PWA install flow (manifest + service worker + install prompt)
 - Settings app-branding panel with DB-backed app name/logo/favicon/app icon/theme color
 - Activity tab with Yajra DataTable + export
 - Diagnostics tabs with DB browser/log/ML checks/user activity visibility
-- Collapsible sidebar settings group with query-aware tab links
+- Collapsible sidebar settings group with query-aware tab links + dedicated Users/RBAC links
 
 ## Tech profile
 
@@ -68,8 +72,8 @@ haarray-core/
 │   ├── docs/starter-kit.blade.php
 │   └── settings/
 │       ├── index.blade.php
-│       ├── users.blade.php (legacy reference page)
-│       └── rbac.blade.php (legacy reference page)
+│       ├── users.blade.php
+│       └── rbac.blade.php
 ├── docs/
 │   ├── SPA.md
 │   └── STARTER_KIT.md
@@ -92,6 +96,7 @@ Served bundle:
 - `HModal`: modal controls
 - `HApi`: AJAX/form helper
 - `HSPA`: partial navigation + lifecycle events
+- `HDebug`: debug console tray + client error capture
 
 - `HConfirm`: confirmation flow for links/forms
 - `HSelect`: searchable single/multi select
@@ -166,7 +171,8 @@ php -S 127.0.0.1:8000 server.php
 - Keep writable folders ready:
 
 ```bash
-chmod -R 0777 storage bootstrap/cache
+chmod -R 0777 storage bootstrap/cache public/uploads
+chmod 0666 .env
 ```
 
 From Diagnostics UI, run `Fix Storage Permissions` if Blade cache writes fail.

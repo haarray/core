@@ -118,6 +118,14 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:view users')
         ->name('ui.options.leads');
 
+    Route::get('/ui/file-manager', [UiOptionsController::class, 'fileManagerList'])
+        ->middleware('permission:view settings')
+        ->name('ui.filemanager.index');
+
+    Route::post('/ui/file-manager/upload', [UiOptionsController::class, 'fileManagerUpload'])
+        ->middleware('permission:manage settings')
+        ->name('ui.filemanager.upload');
+
     Route::get('/ui/datatables/users', [UiOptionsController::class, 'usersTable'])
         ->middleware('permission:view users')
         ->name('ui.datatables.users');

@@ -156,7 +156,7 @@
                       <td>{{ strtoupper($roleName) }}</td>
                       <td>{{ (int) $roleRow['users_count'] }}</td>
                       <td>
-                        <form method="POST" action="{{ route('settings.roles.delete', $roleRow['id']) }}" data-spa data-confirm="true" data-confirm-title="Delete role {{ $roleName }}?" data-confirm-text="This cannot be undone." data-confirm-ok="Delete" data-confirm-cancel="Cancel">
+                        <form method="POST" action="{{ route('settings.roles.delete', $roleRow['id']) }}" data-spa>
                           @csrf
                           @method('DELETE')
                           <button type="submit" class="btn btn-outline-danger btn-sm" @disabled($isProtected || ((int) $roleRow['users_count']) > 0)>
@@ -283,6 +283,26 @@
 @section('scripts')
 <script>
 (function () {
+  document.addEventListener('click', function (event) {
+    const trigger = event.target.closest('[data-role-edit-id]');
+    if (!trigger) return;
+
+    event.preventDefault();
+    const roleId = Number(trigger.getAttribute('data-role-edit-id') || 0);
+    if (!roleId) return;
+
+    const url = new URL('{{ route('settings.rbac') }}', window.location.origin);
+    url.searchParams.set('role', String(roleId));
+    url.hash = 'role-editor-card';
+
+    if (window.HSPA) {
+      window.HSPA.navigate(url.pathname + url.search + url.hash, true);
+      return;
+    }
+
+    window.location.href = url.toString();
+  });
+
   const params = new URLSearchParams(window.location.search);
   if (!params.get('role')) return;
 

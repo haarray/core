@@ -184,7 +184,7 @@
               <div class="h-muted" style="font-size:13px;">{{ $selectedUser->name }} • {{ $selectedUser->email }}</div>
             </div>
             @if(auth()->id() !== $selectedUser->id)
-              <form method="POST" action="{{ route('settings.users.delete', $selectedUser) }}" data-spa data-confirm="true" data-confirm-title="Delete {{ $selectedUser->name }}?" data-confirm-text="This account will be removed permanently." data-confirm-ok="Delete" data-confirm-cancel="Cancel">
+              <form method="POST" action="{{ route('settings.users.delete', $selectedUser) }}" data-spa>
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="btn btn-outline-danger btn-sm">
@@ -269,6 +269,26 @@
 @section('scripts')
 <script>
 (function () {
+  document.addEventListener('click', function (event) {
+    const trigger = event.target.closest('[data-user-edit-id]');
+    if (!trigger) return;
+
+    event.preventDefault();
+    const userId = Number(trigger.getAttribute('data-user-edit-id') || 0);
+    if (!userId) return;
+
+    const url = new URL('{{ route('settings.users.index') }}', window.location.origin);
+    url.searchParams.set('user', String(userId));
+    url.hash = 'user-edit-card';
+
+    if (window.HSPA) {
+      window.HSPA.navigate(url.pathname + url.search + url.hash, true);
+      return;
+    }
+
+    window.location.href = url.toString();
+  });
+
   const params = new URLSearchParams(window.location.search);
   if (!params.get('user')) return;
 

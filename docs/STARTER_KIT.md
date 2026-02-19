@@ -135,6 +135,10 @@ Starter endpoint:
 - Toolbar includes headings, inline formatting, lists, alignment, links, images, tables, code, undo/redo
 - Sanitization removes unsafe tags/attributes and blocks javascript-style URLs
 - Default paste mode is plain text
+- Link/Image/Table tools open an in-app modal UI (no browser `prompt`)
+- Image modal can browse/upload via file manager endpoints:
+  - `GET /ui/file-manager`
+  - `POST /ui/file-manager/upload`
 
 ## 5. Confirm modal (`HConfirm`)
 
@@ -225,14 +229,15 @@ document.addEventListener('hspa:error', (event) => {
   - `settings.users.store`
   - `settings.users.update`
   - `settings.users.delete`
-- Primary management surface is unified `/settings` with tab-driven sections.
-- User management uses a single modal form for create + edit from the DataTable action column.
+- Primary app/environment controls stay under `/settings` tab-driven sections.
+- User and RBAC management are dedicated full pages:
+  - `/settings/users`
+  - `/settings/rbac`
+- DataTable edit actions deep-link to these full pages (`?user=` / `?role=`).
 - RBAC matrix uses radio controls per role/module (`active` / `inactive`), mapped to permission grants.
 - Import/export remains in Settings > Users.
 - Sidebar settings navigation is query-driven:
   - `?tab=settings-app`
-  - `?tab=settings-users`
-  - `?tab=settings-roles`
   - `?tab=settings-activity`
   - `?tab=settings-security`
   - `?tab=settings-notifications`
@@ -247,5 +252,6 @@ document.addEventListener('hspa:error', (event) => {
 - If storage permissions fail, run:
 
 ```bash
-chmod -R 0777 storage bootstrap/cache
+chmod -R 0777 storage bootstrap/cache public/uploads
+chmod 0666 .env
 ```

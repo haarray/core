@@ -46,10 +46,69 @@ class SettingsController extends Controller
         }
 
         $canManageSettings = (bool) ($viewer && $viewer->can('manage settings'));
-        $canManageUsers = (bool) ($viewer && $viewer->can('manage users'));
-        $canViewUsers = (bool) ($viewer && $viewer->can('view users'));
-        $permissionTablesReady = $this->permissionTablesReady();
 
+        $opsSnapshot = [];
+        $dbBrowser = [];
+        if ($canManageSettings && $opsUiEnabled) {
+            $opsSnapshot = $this->buildOpsSnapshot($dbConnectionInfo['connection']);
+            $dbBrowser = $this->buildDbBrowser((string) request()->query('db_table', ''), $dbConnectionInfo['connection']);
+        }
+
+        return view('settings.index', [
+            'fields'      => $fields,
+            'values'      => $values,
+            'sections'    => $this->sections(),
+            'envWritable' => $this->envWritable(),
+            'canManageSettings' => $canManageSettings,
+            'opsUiEnabled' => $opsUiEnabled,
+            'opsSnapshot' => $opsSnapshot,
+            'dbBrowser' => $dbBrowser,
+            'opsOutput' => (string) session('ops_output', ''),
+            'mlDiagnostics' => $this->buildMlDiagnostics(),
+            'mlProbeResult' => session('ml_probe_result', []),
+            'dbConnectionInfo' => $dbConnectionInfo,
+            'uiBranding' => $uiBranding,
+            'mediaLibrary' => $mediaLibrary,
+        ]);
+    }
+
+    public function users(Request $request): View
+    {
+        $viewer = $request->user();
+        $this->assertCan($request, 'view users', 'You do not have permission to view users.');
+
+        $permissionTablesReady = $this->permissionTablesReady();
+        $roles = $this->availableRoleNames();
+        $permissions = $this->availablePermissionNames();
+        $canManageUsers = (bool) ($viewer && $viewer->can('manage users'));
+
+        $query = User::query()->orderBy('name');
+        if ($permissionTablesReady) {
+            $query->with(['roles:id,name', 'permissions:id,name']);
+        }
+        $users = $query->get();
+
+        $selectedUserId = (int) $request->query('user', 0);
+        $selectedUser = $users->firstWhere('id', $selectedUserId);
+        if (!$selectedUser instanceof User) {
+            $selectedUser = $users->first();
+        }
+
+        return view('settings.users', [
+            'users' => $users,
+            'selectedUser' => $selectedUser,
+            'roles' => $roles,
+            'permissionOptions' => $permissions,
+            'hasSpatiePermissions' => $permissionTablesReady,
+            'canManageUsers' => $canManageUsers,
+        ]);
+    }
+
+    public function rbac(Request $request): View
+    {
+        $this->assertCan($request, 'manage settings', 'Only authorized admins can manage RBAC.');
+
+        $permissionTablesReady = $this->permissionTablesReady();
         $roles = collect();
         $roleNames = $this->availableRoleNames();
         $permissionOptions = collect($this->availablePermissionNames());
@@ -76,33 +135,14 @@ class SettingsController extends Controller
             })->values();
         }
 
-        $users = collect();
-        if ($canManageUsers || $canViewUsers) {
-            $query = User::query()->orderBy('name');
-            if ($permissionTablesReady) {
-                $query->with(['roles:id,name', 'permissions:id,name']);
-            }
-            $users = $query->get();
+        $editRoleId = (int) $request->query('role', 0);
+        $editRole = null;
+        if ($permissionTablesReady && $editRoleId > 0) {
+            $editRole = Role::query()->with('permissions')->find($editRoleId);
         }
 
-        $opsSnapshot = [];
-        $dbBrowser = [];
-        $recentActivities = $canManageSettings ? $this->recentActivities(120) : collect();
-        if ($canManageSettings && $opsUiEnabled) {
-            $opsSnapshot = $this->buildOpsSnapshot($dbConnectionInfo['connection']);
-            $dbBrowser = $this->buildDbBrowser((string) request()->query('db_table', ''), $dbConnectionInfo['connection']);
-        }
-
-        return view('settings.index', [
-            'fields'      => $fields,
-            'values'      => $values,
-            'sections'    => $this->sections(),
-            'envWritable' => $this->envWritable(),
-            'isAdmin'     => $canManageSettings || $canManageUsers || (bool) ($viewer && $viewer->isAdmin()),
-            'canManageSettings' => $canManageSettings,
-            'canManageUsers' => $canManageUsers,
-            'canViewUsers' => $canViewUsers,
-            'users' => $users,
+        return view('settings.rbac', [
+            'hasSpatiePermissions' => $permissionTablesReady,
             'roles' => $roles,
             'roleNames' => $roleNames,
             'permissionOptions' => $permissionOptions,
@@ -112,37 +152,7 @@ class SettingsController extends Controller
             'roleExtraPermissionMap' => $roleExtraPermissionMap,
             'roleCatalog' => $roleCatalog,
             'protectedRoleNames' => $this->protectedRoleNames(),
-            'hasSpatiePermissions' => $permissionTablesReady,
-            'opsUiEnabled' => $opsUiEnabled,
-            'opsSnapshot' => $opsSnapshot,
-            'dbBrowser' => $dbBrowser,
-            'recentActivities' => $recentActivities,
-            'opsOutput' => (string) session('ops_output', ''),
-            'mlDiagnostics' => $this->buildMlDiagnostics(),
-            'mlProbeResult' => session('ml_probe_result', []),
-            'dbConnectionInfo' => $dbConnectionInfo,
-            'uiBranding' => $uiBranding,
-            'mediaLibrary' => $mediaLibrary,
-        ]);
-    }
-
-    public function users(Request $request): RedirectResponse
-    {
-        $this->assertCan($request, 'view users', 'You do not have permission to view users.');
-
-        return redirect()->route('settings.index', [
-            'tab' => 'settings-users',
-            'user' => (int) $request->query('user', 0),
-        ]);
-    }
-
-    public function rbac(Request $request): RedirectResponse
-    {
-        $this->assertCan($request, 'manage settings', 'Only authorized admins can manage RBAC.');
-
-        return redirect()->route('settings.index', [
-            'tab' => 'settings-roles',
-            'role' => (int) $request->query('role', 0),
+            'editRole' => $editRole,
         ]);
     }
 
@@ -438,9 +448,9 @@ class SettingsController extends Controller
             'ui_app_icon_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg,ico', 'max:4096'],
         ]);
 
-        $logoUrl = trim((string) ($validated['ui_logo_url'] ?? ''));
-        $faviconUrl = trim((string) ($validated['ui_favicon_url'] ?? ''));
-        $appIconUrl = trim((string) ($validated['ui_app_icon_url'] ?? ''));
+        $logoUrl = $this->normalizeUiAssetInput((string) ($validated['ui_logo_url'] ?? ''));
+        $faviconUrl = $this->normalizeUiAssetInput((string) ($validated['ui_favicon_url'] ?? ''));
+        $appIconUrl = $this->normalizeUiAssetInput((string) ($validated['ui_app_icon_url'] ?? ''));
 
         if ($request->hasFile('ui_logo_file')) {
             $logoUrl = $this->storeBrandAsset($request->file('ui_logo_file'), 'logo');
@@ -849,7 +859,7 @@ class SettingsController extends Controller
         $result = match ($action) {
             'optimize_clear' => $this->runShell('php artisan optimize:clear', 90),
             'migrate_status' => $this->runShell('php artisan migrate:status --no-ansi', 90),
-            'fix_permissions' => $this->runShell('chmod -R 0777 storage bootstrap/cache', 30),
+            'fix_permissions' => $this->runShell('chmod -R 0777 storage bootstrap/cache public/uploads && chmod 0666 .env && chmod +x artisan server.php index.php', 30),
             default => ['ok' => false, 'exit_code' => 1, 'output' => 'Invalid action.'],
         };
 
@@ -1259,7 +1269,18 @@ class SettingsController extends Controller
     private function envWritable(): bool
     {
         $path = $this->envPath();
-        return File::exists($path) ? is_writable($path) : is_writable(base_path());
+        if (!File::exists($path)) {
+            return is_writable(base_path());
+        }
+
+        if (is_writable($path)) {
+            return true;
+        }
+
+        @chmod($path, 0666);
+        clearstatcache(true, $path);
+
+        return is_writable($path);
     }
 
     /**
@@ -1819,7 +1840,7 @@ class SettingsController extends Controller
         File::ensureDirectoryExists($directory, 0775, true);
         $file->move($directory, $filename);
 
-        return asset('uploads/branding/' . $filename);
+        return 'uploads/branding/' . $filename;
     }
 
     /**
@@ -1842,13 +1863,35 @@ class SettingsController extends Controller
 
         return $files->map(function ($file) {
             $filename = (string) $file->getFilename();
+            $relative = 'uploads/branding/' . $filename;
             return [
                 'name' => $filename,
-                'url' => asset('uploads/branding/' . $filename),
+                'path' => $relative,
+                'url' => url($relative),
                 'size_kb' => number_format(((int) $file->getSize()) / 1024, 1),
                 'modified_at' => date('Y-m-d H:i', (int) $file->getMTime()),
             ];
         })->values()->all();
+    }
+
+    private function normalizeUiAssetInput(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (preg_match('/^(https?:)?\/\//i', $value) !== 1) {
+            return ltrim($value, '/');
+        }
+
+        $parsed = parse_url($value);
+        $path = trim((string) ($parsed['path'] ?? ''));
+        if ($path !== '' && str_contains($path, '/uploads/')) {
+            return ltrim($path, '/');
+        }
+
+        return $value;
     }
 
     private function normalizeImportHeading(string $heading, int $index): string
