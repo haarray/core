@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class NotificationController extends Controller
 {
@@ -70,9 +71,11 @@ class NotificationController extends Controller
     public function broadcast(Request $request, TelegramNotificationService $telegram): RedirectResponse
     {
         $actor = $request->user();
-        if (!$actor || !$actor->isAdmin()) {
-            abort(403, 'Only admin can broadcast notifications.');
+        if (!$actor || !$actor->can('manage notifications')) {
+            abort(403, 'You are not allowed to broadcast notifications.');
         }
+
+        $availableRoles = $this->availableRoleNames();
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:120'],
@@ -80,7 +83,7 @@ class NotificationController extends Controller
             'level' => ['required', Rule::in(['info', 'success', 'warning', 'error'])],
             'url' => ['nullable', 'url', 'max:255'],
             'audience' => ['required', Rule::in(['all', 'admins', 'role', 'users'])],
-            'role' => ['nullable', Rule::in(['admin', 'manager', 'user'])],
+            'role' => ['nullable', 'string', Rule::in($availableRoles)],
             'channels' => ['required', 'array', 'min:1'],
             'channels.*' => [Rule::in(['in_app', 'telegram'])],
             'user_ids' => ['nullable', 'array'],
@@ -91,9 +94,18 @@ class NotificationController extends Controller
         $audience = $validated['audience'];
 
         if ($audience === 'admins') {
-            $query->where('role', 'admin');
+            if (Schema::hasTable('model_has_roles') && Schema::hasTable('roles')) {
+                $query->role('admin');
+            } else {
+                $query->where('role', 'admin');
+            }
         } elseif ($audience === 'role') {
-            $query->where('role', $validated['role'] ?? 'user');
+            $roleFilter = $validated['role'] ?? 'user';
+            if (Schema::hasTable('model_has_roles') && Schema::hasTable('roles')) {
+                $query->role($roleFilter);
+            } else {
+                $query->where('role', $roleFilter);
+            }
         } elseif ($audience === 'users') {
             $ids = $validated['user_ids'] ?? [];
             if (empty($ids)) {
@@ -137,5 +149,20 @@ class NotificationController extends Controller
             'success',
             "Broadcast sent. In-app: {$inAppCount}, Telegram: {$telegramCount}."
         );
+    }
+
+    /**
+     * @return array<string>
+     */
+    private function availableRoleNames(): array
+    {
+        if (Schema::hasTable('roles')) {
+            $roles = Role::query()->orderBy('name')->pluck('name')->all();
+            if (!empty($roles)) {
+                return $roles;
+            }
+        }
+
+        return ['admin', 'manager', 'user'];
     }
 }

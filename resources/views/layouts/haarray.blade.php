@@ -12,14 +12,24 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
-  <link rel="stylesheet" href="{{ asset('css/haarray.css') }}">
-  <link rel="stylesheet" href="{{ asset('css/haarray.starter.css') }}">
-  <link rel="stylesheet" href="{{ asset('css/haarray.bootstrap-bridge.css') }}">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+  <link rel="stylesheet" href="{{ asset('css/haarray.app.css') }}">
+  @if(config('haarray.enable_pwa'))
+    <link rel="manifest" href="{{ asset('manifest.json') }}">
+    <meta name="theme-color" content="#f5a623">
+    <link rel="apple-touch-icon" href="{{ asset('icons/pwa-192.png') }}">
+  @endif
   @yield('styles')
 </head>
 <body
   data-notifications-feed-url="{{ route('notifications.feed') }}"
   data-notification-read-url-template="{{ route('notifications.read', ['id' => '__ID__']) }}"
+  data-notifications-poll-seconds="{{ (int) config('haarray.realtime.poll_seconds', 20) }}"
+  data-browser-notify-enabled="{{ auth()->user()->browser_notifications_enabled ? '1' : '0' }}"
+  data-pwa-enabled="{{ config('haarray.enable_pwa') ? '1' : '0' }}"
+  data-sw-url="{{ asset('sw.js') }}"
+  data-icon-sprite-url="{{ asset('icons/icons.svg') }}"
+  data-favicon-url="{{ asset('favicon.ico') }}"
 >
 
 {{-- Sidebar overlay (mobile) --}}
@@ -44,10 +54,12 @@
 
   {{-- Nav --}}
   <div class="h-nav-sec">Finance</div>
-  <a data-spa href="{{ route('dashboard') }}" class="h-nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-    <i class="h-nav-icon fa-solid fa-gauge-high fa-fw"></i>
-    Dashboard
-  </a>
+  @can('view dashboard')
+    <a data-spa href="{{ route('dashboard') }}" class="h-nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+      <i class="h-nav-icon fa-solid fa-gauge-high fa-fw"></i>
+      Dashboard
+    </a>
+  @endcan
   <a href="#" class="h-nav-item" onclick="HToast.info('Coming soon!');return false;">
     <i class="h-nav-icon fa-solid fa-money-bill-transfer fa-fw"></i>
     Transactions
@@ -85,14 +97,18 @@
   </a>
 
   <div class="h-nav-sec">System</div>
-  <a data-spa href="{{ route('docs.index') }}" class="h-nav-item {{ request()->routeIs('docs.*') ? 'active' : '' }}">
-    <i class="h-nav-icon fa-solid fa-book-open fa-fw"></i>
-    Docs
-  </a>
-  <a data-spa href="{{ route('settings.index') }}" class="h-nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
-    <i class="h-nav-icon fa-solid fa-sliders fa-fw"></i>
-    Settings
-  </a>
+  @can('view docs')
+    <a data-spa href="{{ route('docs.index') }}" class="h-nav-item {{ request()->routeIs('docs.*') ? 'active' : '' }}">
+      <i class="h-nav-icon fa-solid fa-book-open fa-fw"></i>
+      Docs
+    </a>
+  @endcan
+  @can('view settings')
+    <a data-spa href="{{ route('settings.index') }}" class="h-nav-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
+      <i class="h-nav-icon fa-solid fa-sliders fa-fw"></i>
+      Settings
+    </a>
+  @endcan
 
   <div class="h-sidebar-spacer"></div>
 
@@ -121,6 +137,11 @@
       <div id="h-topbar-extra">
         @yield('topbar_extra')
       </div>
+      @if(config('haarray.enable_pwa'))
+        <button class="h-icon-btn" type="button" id="h-pwa-install" title="Install app" style="display:none;">
+          <i class="fa-solid fa-download"></i>
+        </button>
+      @endif
       <button class="h-icon-btn h-notif-toggle" type="button" title="Notifications" data-notif-toggle aria-label="Notifications">
         <i class="fa-solid fa-bell"></i>
         <span class="h-notif-dot is-hidden"></span>
@@ -134,22 +155,24 @@
   </header>
 
   {{-- Flash messages --}}
-  @if(session('success'))
-  <div style="padding:14px 28px 0;">
-    <div class="h-alert success">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-      {{ session('success') }}
+  <div id="h-page-flash">
+    @if(session('success'))
+    <div style="padding:14px 28px 0;">
+      <div class="h-alert success">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        {{ session('success') }}
+      </div>
     </div>
-  </div>
-  @endif
-  @if(session('error'))
-  <div style="padding:14px 28px 0;">
-    <div class="h-alert error">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      {{ session('error') }}
+    @endif
+    @if(session('error'))
+    <div style="padding:14px 28px 0;">
+      <div class="h-alert error">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        {{ session('error') }}
+      </div>
     </div>
+    @endif
   </div>
-  @endif
 
   {{-- Page content --}}
   <div class="h-page" id="h-spa-content">
@@ -203,10 +226,14 @@
 </div>
 
 {{-- App modals --}}
-@yield('modals')
+<div id="h-page-modals">
+  @yield('modals')
+</div>
 
 {{-- FAB --}}
-@yield('fab')
+<div id="h-page-fab">
+  @yield('fab')
+</div>
 
 {{-- Confirm Modal --}}
 <x-confirm-modal />
@@ -214,9 +241,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script src="{{ asset('js/haarray.js') }}"></script>
-<script src="{{ asset('js/haarray.plugins.js') }}"></script>
-@yield('scripts')
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="{{ asset('js/haarray.app.js') }}"></script>
+<div id="h-page-scripts">
+  @yield('scripts')
+</div>
 
 </body>
 </html>

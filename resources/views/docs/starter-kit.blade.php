@@ -91,8 +91,8 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
       <section class="doc-block">
         <h3>Integration Checklist</h3>
         <ol>
-          <li>Load <code>bootstrap.css</code> and <code>font-awesome.css</code>, then <code>/public/css/haarray.css</code>, <code>/public/css/haarray.starter.css</code>, and <code>/public/css/haarray.bootstrap-bridge.css</code>.</li>
-          <li>Load jQuery, then <code>/public/js/haarray.js</code>, then <code>/public/js/haarray.plugins.js</code>.</li>
+          <li>Load <code>bootstrap.css</code> and <code>font-awesome.css</code>, then the merged bundle <code>/public/css/haarray.app.css</code>.</li>
+          <li>Load jQuery, then the merged bundle <code>/public/js/haarray.app.js</code>.</li>
           <li>For remote datasets, use <code>data-select2-remote</code> + <code>data-endpoint</code> on a native <code>&lt;select&gt;</code>.</li>
           <li>Keep page content inside <code>#h-spa-content</code> for partial navigation.</li>
           <li>Include <code>&lt;x-confirm-modal /&gt;</code> once in the layout.</li>
@@ -285,6 +285,27 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
             </div>
           </form>
         </div>
+      </section>
+
+      <section class="doc-block">
+        <h3>Server-side DataTables (Yajra)</h3>
+        <p>
+          Use <code>data-h-datatable</code> for SPA-safe table initialization. This starter includes a sample endpoint:
+          <code>{{ route('ui.datatables.users') }}</code>.
+        </p>
+
+        <pre><code>&lt;table
+  data-h-datatable
+  data-endpoint="{{ route('ui.datatables.users') }}"
+  data-page-length="8"&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th data-col="id"&gt;ID&lt;/th&gt;
+      &lt;th data-col="name"&gt;Name&lt;/th&gt;
+      &lt;th data-col="email"&gt;Email&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+&lt;/table&gt;</code></pre>
       </section>
 
       <section class="doc-block">

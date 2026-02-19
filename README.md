@@ -11,9 +11,12 @@ Laravel starter kit for Haarray products with progressive SPA behavior, reusable
 - Custom Select2-style component (`HSelect`)
 - Remote Select2 (server-side AJAX + image/avatar results)
 - Custom CKEditor-style component (`HEditor`)
+- Yajra DataTables + server-side table endpoints
 - Bootstrap + Font Awesome integration (open source)
 - Dedicated sidebar docs + settings pages
 - UI-based `.env` settings editor for whitelisted keys
+- Optional PWA install flow (manifest + service worker + install prompt)
+- Diagnostics tab with Git/DB/log/browser error visibility
 
 ## Tech profile
 
@@ -21,6 +24,7 @@ Laravel starter kit for Haarray products with progressive SPA behavior, reusable
 - Blade templates
 - jQuery (small runtime)
 - Bootstrap 5 + Font Awesome 6 (CDN, open source)
+- DataTables (CDN) + `yajra/laravel-datatables-oracle`
 - Custom CSS design system (`haarray.css` + `haarray.starter.css` + `haarray.bootstrap-bridge.css`)
 - Vite available for future asset pipeline expansion
 
@@ -81,6 +85,7 @@ haarray-core/
 - `HConfirm`: confirmation flow for links/forms
 - `HSelect`: searchable single/multi select
 - `HSelectRemote`: Select2 AJAX mode with image support
+- `HDataTable`: DataTables initializer compatible with SPA swaps
 - `HEditor`: rich text editor with hidden field sync
 - `HIcons`: runtime icon helper
 - `HSvgPie`: lightweight pie charts
@@ -122,6 +127,29 @@ document.addEventListener('hspa:afterSwap', (event) => {
 - Build and serve versioned assets (`npm run build` when bundling custom assets)
 - Ensure DB credentials, queue, mail, and cache drivers are configured
 - Add automated tests for your domain modules before deployment
+
+## Running modes
+
+### Artisan serve
+
+```bash
+php artisan serve
+```
+
+### PHP built-in server via root `server.php`
+
+```bash
+php -S 127.0.0.1:8000 server.php
+```
+
+### XAMPP/shared hosting (project root web path)
+
+- Root `.htaccess` rewrites traffic into `/public` automatically.
+- Keep writable folders ready:
+
+```bash
+chmod -R 775 storage bootstrap/cache
+```
 
 ## Documentation
 

@@ -73,6 +73,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Realtime / Notification Polling
+    |--------------------------------------------------------------------------
+    */
+    'realtime' => [
+        'poll_seconds' => max(10, (int) env('HAARRAY_NOTIFY_POLL_SECONDS', 20)),
+        'broadcast_driver' => env('BROADCAST_CONNECTION', 'log'),
+        'pusher' => [
+            'app_id' => env('PUSHER_APP_ID'),
+            'app_key' => env('PUSHER_APP_KEY'),
+            'app_secret' => env('PUSHER_APP_SECRET'),
+            'host' => env('PUSHER_HOST'),
+            'port' => (int) env('PUSHER_PORT', 443),
+            'scheme' => env('PUSHER_SCHEME', 'https'),
+            'cluster' => env('PUSHER_APP_CLUSTER', 'mt1'),
+            'use_tls' => filter_var(env('PUSHER_USE_TLS', true), FILTER_VALIDATE_BOOL),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Operations / Diagnostics
+    |--------------------------------------------------------------------------
+    */
+    'ops' => [
+        'allow_shell_ui' => filter_var(env('HAARRAY_ALLOW_SHELL_UI', false), FILTER_VALIDATE_BOOL),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | App Routes (for sidebar active state)
     |--------------------------------------------------------------------------
     */

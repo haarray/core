@@ -21,16 +21,68 @@ Route::post('/2fa/resend', [AuthController::class, 'resendTwoFactor'])->name('2f
 
 // ── Protected routes ──────────────────────────────────────
 Route::middleware('auth')->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/docs', fn() => view('docs.starter-kit'))->name('docs.index');
-    Route::get('/docs/starter-kit', fn() => redirect()->route('docs.index'))->name('docs.starter');
-    Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
-    Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
-    Route::post('/settings/security', [SettingsController::class, 'updateMySecurity'])->name('settings.security');
-    Route::post('/settings/users/{user}/access', [SettingsController::class, 'updateUserAccess'])->name('settings.users.access');
-    Route::get('/ui/options/leads', [UiOptionsController::class, 'leads'])->name('ui.options.leads');
-    Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
-    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
-    Route::post('/notifications/broadcast', [NotificationController::class, 'broadcast'])->name('notifications.broadcast');
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->middleware('permission:view dashboard')
+        ->name('dashboard');
+
+    Route::get('/docs', fn() => view('docs.starter-kit'))
+        ->middleware('permission:view docs')
+        ->name('docs.index');
+
+    Route::get('/docs/starter-kit', fn() => redirect()->route('docs.index'))
+        ->middleware('permission:view docs')
+        ->name('docs.starter');
+
+    Route::get('/settings', [SettingsController::class, 'index'])
+        ->middleware('permission:view settings')
+        ->name('settings.index');
+
+    Route::post('/settings', [SettingsController::class, 'update'])
+        ->middleware('permission:manage settings')
+        ->name('settings.update');
+
+    Route::post('/settings/security', [SettingsController::class, 'updateMySecurity'])
+        ->middleware('permission:view settings')
+        ->name('settings.security');
+
+    Route::post('/settings/users/{user}/access', [SettingsController::class, 'updateUserAccess'])
+        ->middleware('permission:manage users')
+        ->name('settings.users.access');
+
+    Route::get('/settings/users/{user}/access', fn () => redirect()->route('settings.index'))
+        ->middleware('permission:view settings');
+
+    Route::post('/settings/roles/matrix', [SettingsController::class, 'updateRoleMatrix'])
+        ->middleware('permission:manage settings')
+        ->name('settings.roles.matrix');
+
+    Route::post('/settings/ops/action', [SettingsController::class, 'runOpsAction'])
+        ->middleware('permission:manage settings')
+        ->name('settings.ops.action');
+
+    Route::post('/settings/ml/probe', [SettingsController::class, 'runMlProbe'])
+        ->middleware('permission:manage settings')
+        ->name('settings.ml.probe');
+
+    Route::get('/ui/options/leads', [UiOptionsController::class, 'leads'])
+        ->middleware('permission:view users')
+        ->name('ui.options.leads');
+
+    Route::get('/ui/datatables/users', [UiOptionsController::class, 'usersTable'])
+        ->middleware('permission:manage users')
+        ->name('ui.datatables.users');
+
+    Route::get('/notifications/feed', [NotificationController::class, 'feed'])
+        ->middleware('permission:view notifications')
+        ->name('notifications.feed');
+
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])
+        ->middleware('permission:view notifications')
+        ->name('notifications.read');
+
+    Route::post('/notifications/broadcast', [NotificationController::class, 'broadcast'])
+        ->middleware('permission:manage notifications')
+        ->name('notifications.broadcast');
+
     Route::post('/logout',   [AuthController::class, 'logout'])->name('logout');
 });

@@ -194,6 +194,7 @@
         <button type="button" class="h-btn ghost" style="flex:1;font-size:12px;padding:8px;" data-type="credit"
           onclick="setType('credit',this)" id="tab-inc">Income</button>
       </div>
+      <input type="hidden" id="ql-type" value="debit">
 
       <div class="h-form-group">
         <label class="h-label">Amount (NPR)</label>
@@ -247,6 +248,7 @@ $(function () {
 
   const maxVal = Math.max(...chartData.income, ...chartData.expense);
   const $bars  = $('#chart-bars');
+  $bars.empty();
 
   chartData.labels.forEach((lbl, i) => {
     const incH = Math.round((chartData.income[i]  / maxVal) * 100);
@@ -261,27 +263,28 @@ $(function () {
   });
 
   // ── Quick log type tabs ───────────────────────────────
-  // Set expense as default active
-  setType('debit', document.getElementById('tab-exp'));
-
   window.setType = function (type, btn) {
     $('#type-tabs button').removeClass('danger teal').addClass('ghost');
     if (type === 'debit')  $(btn).removeClass('ghost').addClass('danger');
     if (type === 'credit') $(btn).removeClass('ghost').addClass('teal');
     $('#ql-type').val(type);
   };
+  const expBtn = document.getElementById('tab-exp');
+  if (expBtn) {
+    window.setType('debit', expBtn);
+  }
 
   // ── Category chips ────────────────────────────────────
   // Activate first chip
   $('.cat-chip').first().removeClass('muted').addClass('gold');
 
-  $(document).on('click', '.cat-chip', function () {
+  $(document).off('click.hDashboardCat', '.cat-chip').on('click.hDashboardCat', '.cat-chip', function () {
     $('.cat-chip').removeClass('gold').addClass('muted');
     $(this).removeClass('muted').addClass('gold');
   });
 
   // ── Quick log submit ──────────────────────────────────
-  $('#ql-submit').on('click', function () {
+  $('#ql-submit').off('click.hDashboardSubmit').on('click.hDashboardSubmit', function () {
     const amt = parseFloat($('#ql-amount').val());
     if (!amt || amt <= 0) { HToast.warning('Enter an amount first.'); return; }
 

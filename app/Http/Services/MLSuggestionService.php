@@ -22,7 +22,8 @@ use Illuminate\Support\Facades\Log;
 class MLSuggestionService
 {
     public function __construct(
-        protected MarketDataService $market
+        protected MarketDataService $market,
+        protected AdvancedMLService $advancedML,
     ) {}
 
     /**
@@ -146,6 +147,29 @@ class MLSuggestionService
                     'type'    => 'spending',
                     'priority'=> 'low',
                     'icon'    => '📊',
+                ];
+            }
+
+            $monthIncome = Transaction::where('user_id', $user->id)
+                ->where('type', 'credit')
+                ->whereMonth('transaction_date', $now->month)
+                ->sum('amount');
+            $monthExpense = Transaction::where('user_id', $user->id)
+                ->where('type', 'debit')
+                ->whereMonth('transaction_date', $now->month)
+                ->sum('amount');
+            $savingsRate = $monthIncome > 0 ? (($monthIncome - $monthExpense) / $monthIncome) : 0;
+
+            $profile = $this->advancedML->classifySpendingProfile($foodPct, $entPct, $savingsRate);
+            if ($profile['label'] === 'high-risk') {
+                $suggestions[] = [
+                    'title' => 'ML flagged a high-risk spending profile',
+                    'message' => 'Food + discretionary ratios are above your target mix. Risk score: '
+                        . round($profile['risk_score'] * 100)
+                        . '%. Consider applying a hard weekly cap.',
+                    'type' => 'spending',
+                    'priority' => 'high',
+                    'icon' => '🧪',
                 ];
             }
         }

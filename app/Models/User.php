@@ -6,11 +6,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -22,10 +23,10 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
-        'permissions',
         'telegram_chat_id',
         'receive_in_app_notifications',
         'receive_telegram_notifications',
+        'browser_notifications_enabled',
         'two_factor_enabled',
         'two_factor_code',
         'two_factor_expires_at',
@@ -52,9 +53,9 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'permissions' => 'array',
             'receive_in_app_notifications' => 'boolean',
             'receive_telegram_notifications' => 'boolean',
+            'browser_notifications_enabled' => 'boolean',
             'two_factor_enabled' => 'boolean',
             'two_factor_expires_at' => 'datetime',
         ];
@@ -62,17 +63,15 @@ class User extends Authenticatable
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
-    }
-
-    public function hasRole(string $role): bool
-    {
-        return $this->role === $role;
+        return $this->role === 'admin' || $this->hasRole('admin');
     }
 
     public function canDo(string $permission): bool
     {
-        $perms = $this->permissions ?? [];
-        return in_array($permission, $perms, true);
+        try {
+            return $this->can($permission);
+        } catch (\Throwable $exception) {
+            return false;
+        }
     }
 }

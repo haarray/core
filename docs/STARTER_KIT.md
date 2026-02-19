@@ -15,6 +15,7 @@ Load in this order inside your main layout:
 7. `bootstrap.bundle.js`
 8. `public/js/haarray.js`
 9. `public/js/haarray.plugins.js`
+10. DataTables CSS/JS (if using server-side tables)
 
 `#h-spa-content` must wrap your content region for partial page swaps.
 
@@ -85,6 +86,30 @@ Use for large datasets with server-side filtering and optional image/avatar rend
 `routes/web.php` already includes a sample endpoint:
 
 - `GET /ui/options/leads` -> `ui.options.leads`
+
+## 3.2 Server-side DataTables (`HDataTable` + Yajra)
+
+Use for large tabular datasets with search/order/pagination from backend.
+
+```blade
+<table
+  data-h-datatable
+  data-endpoint="{{ route('ui.datatables.users') }}"
+  data-page-length="8">
+  <thead>
+    <tr>
+      <th data-col="id">ID</th>
+      <th data-col="name">Name</th>
+      <th data-col="email">Email</th>
+      <th data-col="role">Role</th>
+    </tr>
+  </thead>
+</table>
+```
+
+Starter endpoint:
+
+- `GET /ui/datatables/users` -> `ui.datatables.users`
 
 ## 4. Rich editor (`HEditor`)
 
@@ -190,3 +215,4 @@ document.addEventListener('hspa:error', (event) => {
 - Define project-specific tokens on top of `haarray.css` variables
 - Restrict `.env` UI access to trusted users only (route: `/settings`)
 - Keep Telegram and ML threshold keys under source-controlled `.env.example` for consistent environments
+- Use `HAARRAY_ALLOW_SHELL_UI=false` in production unless absolutely required

@@ -11,6 +11,7 @@
       HIcons.init(target);
       HSelect.init(target);
       HSelectRemote.init(target);
+      HDataTable.init(target);
       HEditor.init(target);
       HSvgPie.init(target);
     },
@@ -486,6 +487,7 @@
       const textField = $select.data('textField') || 'text';
       const imageField = $select.data('imageField') || 'image';
       const subtitleField = $select.data('subtitleField') || 'subtitle';
+      const dropdownParent = $($select.data('dropdownParent') || document.body);
 
       const renderOption = (item) => {
         if (item.loading) return item.text;
@@ -524,7 +526,12 @@
         width: '100%',
         placeholder,
         allowClear: !$select.prop('multiple'),
+        dropdownParent,
+        dropdownCssClass: 'h-s2-dropdown',
         minimumInputLength: minInput,
+        escapeMarkup(markup) {
+          return markup;
+        },
         ajax: {
           url: endpoint,
           dataType: 'json',
@@ -562,18 +569,112 @@
   };
 
   /* --------------------------
+     HDataTable: DataTables bridge
+  ---------------------------*/
+  const HDataTable = {
+    selector: 'table[data-h-datatable]',
+
+    init(root) {
+      if (typeof $.fn.DataTable !== 'function') return;
+
+      const $root = root && root.querySelectorAll ? $(root) : $(document);
+      const $targets = $root.is(this.selector) ? $root : $root.find(this.selector);
+      $targets.each((_, table) => this.setup($(table)));
+    },
+
+    setup($table) {
+      if (!$table || !$table.length) return;
+
+      const tableEl = $table[0];
+      const endpoint = String($table.data('endpoint') || '').trim();
+      const columns = this._columns($table);
+      const pageLength = Number($table.data('pageLength') || 10);
+
+      if ($.fn.DataTable.isDataTable(tableEl)) {
+        const api = $table.DataTable();
+        if (endpoint && api.ajax) {
+          api.ajax.url(endpoint).load(null, false);
+        }
+        if (api.columns && typeof api.columns.adjust === 'function') {
+          api.columns.adjust();
+        }
+        return;
+      }
+
+      const options = {
+        processing: Boolean(endpoint),
+        serverSide: Boolean(endpoint),
+        searching: true,
+        ordering: true,
+        lengthChange: true,
+        autoWidth: false,
+        pageLength: Number.isFinite(pageLength) ? Math.max(10, Math.min(pageLength, 100)) : 10,
+        lengthMenu: [
+          [10, 20, 50, 100],
+          [10, 20, 50, 100],
+        ],
+        dom: "<'row align-items-center mb-2'<'col-md-6'l><'col-md-6'f>>" +
+          "<'row'<'col-12'tr>>" +
+          "<'row mt-2'<'col-md-5'i><'col-md-7'p>>",
+        order: [[0, 'desc']],
+        language: {
+          search: '',
+          searchPlaceholder: 'Search...',
+          lengthMenu: 'Show _MENU_ entries',
+          emptyTable: 'No records found.',
+        },
+      };
+
+      if (endpoint) {
+        options.ajax = {
+          url: endpoint,
+          type: 'GET',
+        };
+
+        if (columns.length) {
+          options.columns = columns;
+        }
+      }
+
+      $table.DataTable(options);
+      $table.data('hDatatableReady', true);
+    },
+
+    _columns($table) {
+      const columns = [];
+
+      $table.find('thead th[data-col]').each((_, th) => {
+        const key = String($(th).data('col') || '').trim();
+        if (!key) return;
+        columns.push({ data: key, name: key });
+      });
+
+      return columns;
+    },
+  };
+
+  /* --------------------------
      HEditor: rich text editor
   ---------------------------*/
   const HEditor = {
     selector: '[data-editor], .h-editor',
     toolbar: [
+      { cmd: 'formatBlock', arg: 'p', label: 'P', title: 'Paragraph' },
+      { cmd: 'formatBlock', arg: 'h2', label: 'H2', title: 'Heading 2' },
+      { cmd: 'formatBlock', arg: 'h3', label: 'H3', title: 'Heading 3' },
       { cmd: 'bold', label: 'B', title: 'Bold' },
       { cmd: 'italic', label: 'I', title: 'Italic' },
       { cmd: 'underline', label: 'U', title: 'Underline' },
+      { cmd: 'strikeThrough', label: 'S', title: 'Strikethrough' },
       { cmd: 'insertUnorderedList', label: '• List', title: 'Bulleted list' },
       { cmd: 'insertOrderedList', label: '1. List', title: 'Numbered list' },
       { cmd: 'formatBlock', arg: 'blockquote', label: 'Quote', title: 'Blockquote' },
+      { cmd: 'formatBlock', arg: 'pre', label: '</>', title: 'Code block' },
       { cmd: 'createLink', label: 'Link', title: 'Insert link' },
+      { cmd: 'unlink', label: 'Unlink', title: 'Remove link' },
+      { cmd: 'insertImage', label: 'Image', title: 'Insert image by URL' },
+      { cmd: 'undo', label: 'Undo', title: 'Undo' },
+      { cmd: 'redo', label: 'Redo', title: 'Redo' },
       { cmd: 'removeFormat', label: 'Clear', title: 'Clear formatting' },
     ],
 
@@ -628,18 +729,7 @@
         const arg = button.dataset.arg || null;
 
         editorEl.focus();
-
-        if (cmd === 'createLink') {
-          const href = prompt('Enter URL');
-          if (!href) return;
-          document.execCommand('createLink', false, href);
-        } else if (cmd === 'formatBlock') {
-          document.execCommand('formatBlock', false, arg || 'p');
-        } else {
-          document.execCommand(cmd, false, null);
-        }
-
-        this._syncHiddenField(editorEl, editorEl.dataset.editorName || editorEl.getAttribute('name') || '');
+        this._execCommand(editorEl, cmd, arg);
       });
     },
 
@@ -659,6 +749,42 @@
         const text = (event.clipboardData || window.clipboardData).getData('text');
         document.execCommand('insertText', false, text);
       });
+
+      editorEl.addEventListener('keydown', (event) => {
+        if (!(event.metaKey || event.ctrlKey)) return;
+
+        const key = String(event.key || '').toLowerCase();
+        if (!['b', 'i', 'u', 'k', 'z', 'y'].includes(key)) return;
+        event.preventDefault();
+
+        if (key === 'b') this._execCommand(editorEl, 'bold');
+        if (key === 'i') this._execCommand(editorEl, 'italic');
+        if (key === 'u') this._execCommand(editorEl, 'underline');
+        if (key === 'k') this._execCommand(editorEl, 'createLink');
+        if (key === 'z') this._execCommand(editorEl, 'undo');
+        if (key === 'y') this._execCommand(editorEl, 'redo');
+      });
+    },
+
+    _execCommand(editorEl, cmd, arg = null) {
+      if (!editorEl || !cmd) return;
+
+      if (cmd === 'createLink') {
+        const href = prompt('Enter URL');
+        if (!href) return;
+        document.execCommand('createLink', false, href);
+      } else if (cmd === 'insertImage') {
+        const src = prompt('Enter image URL');
+        if (!src) return;
+        document.execCommand('insertImage', false, src);
+      } else if (cmd === 'formatBlock') {
+        document.execCommand('formatBlock', false, arg || 'p');
+      } else {
+        document.execCommand(cmd, false, arg || null);
+      }
+
+      editorEl.dispatchEvent(new Event('input', { bubbles: true }));
+      this._syncHiddenField(editorEl, editorEl.dataset.editorName || editorEl.getAttribute('name') || '');
     },
 
     _syncHiddenField(editorEl, editorName) {
@@ -700,6 +826,7 @@
   const HIcons = {
     init(root) {
       const ctx = root && root.querySelectorAll ? root : document;
+      const spriteUrl = this._spriteUrl();
 
       ctx.querySelectorAll('[data-icon]').forEach((node) => {
         if (node.dataset.iconReady === '1') return;
@@ -716,8 +843,8 @@
         svg.setAttribute('aria-hidden', 'true');
 
         const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-        use.setAttribute('href', '/icons/icons.svg#' + name);
-        use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '/icons/icons.svg#' + name);
+        use.setAttribute('href', spriteUrl + '#' + name);
+        use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', spriteUrl + '#' + name);
         svg.appendChild(use);
 
         node.dataset.iconReady = '1';
@@ -728,7 +855,14 @@
     svg(name, className, size) {
       const cls = className || 'h-icon';
       const sz = size || 16;
-      return `<svg class="${cls}" width="${sz}" height="${sz}" viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/icons.svg#${name}" xlink:href="/icons/icons.svg#${name}"></use></svg>`;
+      const spriteUrl = this._spriteUrl();
+      return `<svg class="${cls}" width="${sz}" height="${sz}" viewBox="0 0 24 24" aria-hidden="true"><use href="${spriteUrl}#${name}" xlink:href="${spriteUrl}#${name}"></use></svg>`;
+    },
+
+    _spriteUrl() {
+      const body = document.body;
+      const fromData = body && body.dataset ? body.dataset.iconSpriteUrl : '';
+      return String(fromData || '/icons/icons.svg');
     },
   };
 
@@ -819,6 +953,7 @@
     window.HTabs = HTabs;
     window.HSelect = HSelect;
     window.HSelectRemote = HSelectRemote;
+    window.HDataTable = HDataTable;
     window.HEditor = HEditor;
     window.HIcons = HIcons;
     window.HSvgPie = HSvgPie;

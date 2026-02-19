@@ -13,12 +13,8 @@ return new class extends Migration
                 $table->string('role')->default('user')->after('password');
             }
 
-            if (!Schema::hasColumn('users', 'permissions')) {
-                $table->json('permissions')->nullable()->after('role');
-            }
-
             if (!Schema::hasColumn('users', 'telegram_chat_id')) {
-                $table->string('telegram_chat_id')->nullable()->after('permissions');
+                $table->string('telegram_chat_id')->nullable()->after('role');
             }
 
             if (!Schema::hasColumn('users', 'receive_in_app_notifications')) {
@@ -52,7 +48,6 @@ return new class extends Migration
         $dropColumns = [];
         foreach ([
             'role',
-            'permissions',
             'telegram_chat_id',
             'receive_in_app_notifications',
             'receive_telegram_notifications',

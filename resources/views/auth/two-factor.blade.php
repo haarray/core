@@ -10,9 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="{{ asset('css/haarray.css') }}">
-  <link rel="stylesheet" href="{{ asset('css/haarray.starter.css') }}">
-  <link rel="stylesheet" href="{{ asset('css/haarray.bootstrap-bridge.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/haarray.app.css') }}">
 </head>
 <body>
 <div class="h-auth-wrap">
@@ -87,7 +85,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="{{ asset('js/haarray.js') }}"></script>
+<script src="{{ asset('js/haarray.app.js') }}"></script>
 </body>
 </html>
 
