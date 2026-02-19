@@ -1,4 +1,4 @@
-@extends('layouts.haarray')
+@extends('layouts.app')
 
 @section('title', 'Users')
 @section('page_title', 'Users')

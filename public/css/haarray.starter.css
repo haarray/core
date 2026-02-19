@@ -626,25 +626,70 @@
 .h-editor-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
   margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid var(--hl-border);
+  border-radius: 10px;
+  background: var(--hl-bg-soft);
+}
+
+.h-editor-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-right: 6px;
+  margin-right: 2px;
+  border-right: 1px solid var(--hl-border);
+}
+
+.h-editor-group:last-child {
+  border-right: 0;
+  margin-right: 0;
+  padding-right: 0;
 }
 
 .h-editor-btn {
   border: 1px solid var(--hl-border);
-  background: var(--hl-bg-soft);
+  background: var(--hl-bg);
   color: var(--hl-text-soft);
-  padding: 5px 8px;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
-  font-family: var(--hl-mono);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
 .h-editor-btn:hover {
   border-color: var(--hl-border-strong);
   color: var(--hl-text);
+}
+
+.h-editor-btn.is-active {
+  border-color: rgba(245, 166, 35, 0.42);
+  color: var(--hl-gold);
+  background: rgba(245, 166, 35, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(245, 166, 35, 0.2);
+}
+
+.h-editor-select {
+  border: 1px solid var(--hl-border);
+  background: var(--hl-bg);
+  color: var(--hl-text);
+  min-height: 30px;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.h-editor-select:focus {
+  border-color: rgba(245, 166, 35, 0.55);
+  box-shadow: 0 0 0 0.15rem rgba(245, 166, 35, 0.15);
 }
 
 .h-editor {
@@ -672,6 +717,64 @@
 
 .h-editor.h-editor--bare {
   border-style: dashed;
+}
+
+.h-editor p,
+.h-editor ul,
+.h-editor ol,
+.h-editor blockquote,
+.h-editor pre,
+.h-editor table {
+  margin: 0 0 0.75rem;
+}
+
+.h-editor h1,
+.h-editor h2,
+.h-editor h3,
+.h-editor h4 {
+  margin: 0 0 0.6rem;
+  line-height: 1.35;
+}
+
+.h-editor blockquote {
+  border-left: 3px solid rgba(245, 166, 35, 0.45);
+  padding-left: 10px;
+  color: var(--hl-text-soft);
+}
+
+.h-editor code {
+  background: rgba(245, 166, 35, 0.12);
+  border: 1px solid rgba(245, 166, 35, 0.2);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-family: var(--hl-mono);
+  font-size: 12px;
+}
+
+.h-editor pre {
+  background: rgba(6, 10, 19, 0.7);
+  border: 1px solid var(--hl-border);
+  border-radius: 8px;
+  padding: 10px;
+  overflow: auto;
+}
+
+.h-editor pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.h-editor table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.h-editor th,
+.h-editor td {
+  border: 1px solid var(--hl-border);
+  padding: 6px 8px;
+  vertical-align: top;
 }
 
 .h-editor:empty:before {
@@ -805,6 +908,7 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0)) padding-box,
     var(--hl-bg);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  overflow: visible;
 }
 
 .hl-settings .h-tab-nav,
@@ -1162,6 +1266,8 @@
   overflow: auto;
   max-width: 100%;
   margin-top: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .hl-docs code {
@@ -1189,6 +1295,10 @@
 
 .hl-docs .demo .select2-container {
   width: 100% !important;
+}
+
+.hl-docs .demo .select2-container--open {
+  z-index: 1200;
 }
 
 .hl-docs .table td,
@@ -1286,6 +1396,41 @@
   --bs-table-striped-color: var(--t1);
   --bs-table-hover-bg: rgba(255, 255, 255, 0.04);
   --bs-table-hover-color: var(--t1);
+}
+
+.card,
+.accordion-item,
+.list-group-item,
+.dropdown-menu,
+.modal-content,
+.offcanvas,
+.popover {
+  background: var(--bg2);
+  color: var(--t1);
+  border-color: var(--bd);
+}
+
+.card-header,
+.card-footer,
+.accordion-button {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--bd);
+  color: var(--t1);
+}
+
+.accordion-button:not(.collapsed) {
+  background: rgba(245, 166, 35, 0.12);
+  color: var(--t1);
+}
+
+[data-theme='dark'] .bg-white,
+[data-theme='dark'] .bg-light {
+  background-color: var(--bg2) !important;
+  color: var(--t1) !important;
+}
+
+[data-theme='dark'] .text-dark {
+  color: var(--t1) !important;
 }
 
 .form-control,

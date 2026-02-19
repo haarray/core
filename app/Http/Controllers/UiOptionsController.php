@@ -91,8 +91,7 @@ class UiOptionsController extends Controller
                     return '<span class="h-muted">View only</span>';
                 }
 
-                $url = route('settings.users.index', ['user' => $user->id]) . '#user-editor';
-                return '<a class="btn btn-outline-secondary btn-sm" data-spa href="' . e($url) . '">Edit</a>';
+                return '<button type="button" class="btn btn-outline-secondary btn-sm" data-user-edit-id="' . (int) $user->id . '">Edit</button>';
             })
             ->rawColumns(['actions'])
             ->toJson();
@@ -110,7 +109,6 @@ class UiOptionsController extends Controller
 
         $rows = $roles->map(function (Role $role) use ($roleUserCounts, $protected, $request) {
             $isProtected = in_array((string) $role->name, $protected, true);
-            $editUrl = route('settings.rbac', ['role' => $role->id]) . '#role-editor';
 
             return [
                 'id' => $role->id,
@@ -119,7 +117,7 @@ class UiOptionsController extends Controller
                 'users_count' => (int) ($roleUserCounts[$role->id] ?? 0),
                 'is_protected' => $isProtected ? 'Yes' : 'No',
                 'actions' => $request->user() && $request->user()->can('manage settings')
-                    ? '<a class="btn btn-outline-secondary btn-sm" data-spa href="' . e($editUrl) . '">Edit</a>'
+                    ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-role-edit-id="' . (int) $role->id . '">Edit</button>'
                     : '<span class="h-muted">View only</span>',
             ];
         })->values();

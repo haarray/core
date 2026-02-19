@@ -110,7 +110,7 @@ Starter endpoint:
 
 ## 4. Rich editor (`HEditor`)
 
-`HEditor` is a lightweight rich text block with formatting toolbar.
+`HEditor` is a lightweight but production-ready rich text block with grouped toolbar controls.
 
 ### Blade usage
 
@@ -132,7 +132,8 @@ Starter endpoint:
 ### Notes
 
 - Hidden `<textarea>` is injected automatically into the parent form
-- Sanitization removes inline script/style/event handlers
+- Toolbar includes headings, inline formatting, lists, alignment, links, images, tables, code, undo/redo
+- Sanitization removes unsafe tags/attributes and blocks javascript-style URLs
 - Default paste mode is plain text
 
 ## 5. Confirm modal (`HConfirm`)
@@ -214,7 +215,7 @@ document.addEventListener('hspa:error', (event) => {
 - Keep Telegram and ML threshold keys under source-controlled `.env.example` for consistent environments
 - Use `HAARRAY_ALLOW_SHELL_UI=false` in production unless absolutely required
 
-## 9. RBAC and user pages
+## 9. RBAC and user management
 
 - Role CRUD endpoints:
   - `settings.roles.store`
@@ -224,15 +225,16 @@ document.addEventListener('hspa:error', (event) => {
   - `settings.users.store`
   - `settings.users.update`
   - `settings.users.delete`
-- Dedicated pages:
-  - `/settings/users`
-  - `/settings/rbac`
-- RBAC matrix uses radio controls per role/module (`off`, `view`, `manage`).
-- User page supports role assignment, direct permissions, notification channels, and import/export.
-- Sidebar supports multi-level navigation for Settings sections using query-driven links:
+- Primary management surface is unified `/settings` with tab-driven sections.
+- User management uses a single modal form for create + edit from the DataTable action column.
+- RBAC matrix uses radio controls per role/module (`active` / `inactive`), mapped to permission grants.
+- Import/export remains in Settings > Users.
+- Sidebar settings navigation is query-driven:
   - `?tab=settings-app`
-  - `?tab=settings-profile`
+  - `?tab=settings-users`
+  - `?tab=settings-roles`
   - `?tab=settings-activity`
+  - `?tab=settings-security`
   - `?tab=settings-notifications`
   - `?tab=settings-system`
   - `?tab=settings-diagnostics`

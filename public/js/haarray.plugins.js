@@ -692,25 +692,54 @@
   ---------------------------*/
   const HEditor = {
     selector: '[data-editor], .h-editor',
-    toolbar: [
-      { cmd: 'formatBlock', arg: 'p', label: 'P', title: 'Paragraph' },
-      { cmd: 'formatBlock', arg: 'h2', label: 'H2', title: 'Heading 2' },
-      { cmd: 'formatBlock', arg: 'h3', label: 'H3', title: 'Heading 3' },
-      { cmd: 'bold', label: 'B', title: 'Bold' },
-      { cmd: 'italic', label: 'I', title: 'Italic' },
-      { cmd: 'underline', label: 'U', title: 'Underline' },
-      { cmd: 'strikeThrough', label: 'S', title: 'Strikethrough' },
-      { cmd: 'insertUnorderedList', label: '• List', title: 'Bulleted list' },
-      { cmd: 'insertOrderedList', label: '1. List', title: 'Numbered list' },
-      { cmd: 'formatBlock', arg: 'blockquote', label: 'Quote', title: 'Blockquote' },
-      { cmd: 'formatBlock', arg: 'pre', label: '</>', title: 'Code block' },
-      { cmd: 'createLink', label: 'Link', title: 'Insert link' },
-      { cmd: 'unlink', label: 'Unlink', title: 'Remove link' },
-      { cmd: 'insertImage', label: 'Image', title: 'Insert image by URL' },
-      { cmd: 'undo', label: 'Undo', title: 'Undo' },
-      { cmd: 'redo', label: 'Redo', title: 'Redo' },
-      { cmd: 'removeFormat', label: 'Clear', title: 'Clear formatting' },
+    toolbarGroups: [
+      [
+        {
+          type: 'select',
+          cmd: 'formatBlock',
+          title: 'Text style',
+          options: [
+            { value: 'p', label: 'Paragraph' },
+            { value: 'h2', label: 'Heading 2' },
+            { value: 'h3', label: 'Heading 3' },
+            { value: 'h4', label: 'Heading 4' },
+            { value: 'blockquote', label: 'Blockquote' },
+            { value: 'pre', label: 'Code block' },
+          ],
+        },
+      ],
+      [
+        { cmd: 'bold', label: '<i class="fa-solid fa-bold"></i>', title: 'Bold' },
+        { cmd: 'italic', label: '<i class="fa-solid fa-italic"></i>', title: 'Italic' },
+        { cmd: 'underline', label: '<i class="fa-solid fa-underline"></i>', title: 'Underline' },
+        { cmd: 'strikeThrough', label: '<i class="fa-solid fa-strikethrough"></i>', title: 'Strikethrough' },
+        { cmd: 'inlineCode', label: '<i class="fa-solid fa-code"></i>', title: 'Inline code' },
+      ],
+      [
+        { cmd: 'insertUnorderedList', label: '<i class="fa-solid fa-list-ul"></i>', title: 'Bulleted list' },
+        { cmd: 'insertOrderedList', label: '<i class="fa-solid fa-list-ol"></i>', title: 'Numbered list' },
+        { cmd: 'outdent', label: '<i class="fa-solid fa-outdent"></i>', title: 'Outdent' },
+        { cmd: 'indent', label: '<i class="fa-solid fa-indent"></i>', title: 'Indent' },
+      ],
+      [
+        { cmd: 'justifyLeft', label: '<i class="fa-solid fa-align-left"></i>', title: 'Align left' },
+        { cmd: 'justifyCenter', label: '<i class="fa-solid fa-align-center"></i>', title: 'Align center' },
+        { cmd: 'justifyRight', label: '<i class="fa-solid fa-align-right"></i>', title: 'Align right' },
+      ],
+      [
+        { cmd: 'createLink', label: '<i class="fa-solid fa-link"></i>', title: 'Insert link' },
+        { cmd: 'unlink', label: '<i class="fa-solid fa-link-slash"></i>', title: 'Remove link' },
+        { cmd: 'insertImage', label: '<i class="fa-solid fa-image"></i>', title: 'Insert image URL' },
+        { cmd: 'insertTable', label: '<i class="fa-solid fa-table"></i>', title: 'Insert table' },
+        { cmd: 'insertHorizontalRule', label: '<i class="fa-solid fa-grip-lines"></i>', title: 'Horizontal line' },
+      ],
+      [
+        { cmd: 'undo', label: '<i class="fa-solid fa-rotate-left"></i>', title: 'Undo' },
+        { cmd: 'redo', label: '<i class="fa-solid fa-rotate-right"></i>', title: 'Redo' },
+        { cmd: 'removeFormat', label: '<i class="fa-solid fa-eraser"></i>', title: 'Clear formatting' },
+      ],
     ],
+    stateCommands: ['bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList', 'justifyLeft', 'justifyCenter', 'justifyRight'],
 
     init(root) {
       const ctx = root && root.querySelectorAll ? root : document;
@@ -746,14 +775,36 @@
       const toolbar = document.createElement('div');
       toolbar.className = 'h-editor-toolbar';
 
-      toolbar.innerHTML = this.toolbar
-        .map(
-          (item) =>
-            `<button type="button" class="h-editor-btn" data-cmd="${item.cmd}" data-arg="${item.arg || ''}" title="${item.title}">${item.label}</button>`
-        )
+      toolbar.innerHTML = this.toolbarGroups
+        .map((group) => {
+          const controls = group
+            .map((item) => {
+              if (item.type === 'select') {
+                const options = (item.options || [])
+                  .map((option) => `<option value="${option.value}">${option.label}</option>`)
+                  .join('');
+                return `
+                  <select class="h-editor-select" data-cmd="${item.cmd}" title="${item.title}">
+                    ${options}
+                  </select>
+                `;
+              }
+
+              return `
+                <button type="button" class="h-editor-btn" data-cmd="${item.cmd}" data-arg="${item.arg || ''}" title="${item.title}" aria-label="${item.title}">
+                  ${item.label}
+                </button>
+              `;
+            })
+            .join('');
+
+          return `<div class="h-editor-group">${controls}</div>`;
+        })
         .join('');
 
       editorEl.parentNode.insertBefore(toolbar, editorEl);
+      editorEl.dataset.editorToolbarId = this._editorId(editorEl);
+      toolbar.dataset.editorToolbar = editorEl.dataset.editorToolbarId;
 
       toolbar.addEventListener('click', (event) => {
         const button = event.target.closest('[data-cmd]');
@@ -765,30 +816,42 @@
         editorEl.focus();
         this._execCommand(editorEl, cmd, arg);
       });
+
+      toolbar.addEventListener('change', (event) => {
+        const select = event.target.closest('select[data-cmd]');
+        if (!select) return;
+        editorEl.focus();
+        this._execCommand(editorEl, String(select.dataset.cmd || ''), String(select.value || 'p'));
+      });
     },
 
     _bindEditorEvents(editorEl, editorName) {
       editorEl.addEventListener('input', () => {
+        this._refreshToolbarState(editorEl);
         this._syncHiddenField(editorEl, editorName);
       });
       editorEl.addEventListener('blur', () => {
         this._sanitize(editorEl);
+        this._refreshToolbarState(editorEl);
         this._syncHiddenField(editorEl, editorName);
       });
-      editorEl.addEventListener('focus', () => editorEl.classList.add('is-focused'));
+      editorEl.addEventListener('focus', () => {
+        editorEl.classList.add('is-focused');
+        this._refreshToolbarState(editorEl);
+      });
       editorEl.addEventListener('blur', () => editorEl.classList.remove('is-focused'));
       editorEl.addEventListener('paste', (event) => {
         if (editorEl.dataset.paste === 'rich') return;
         event.preventDefault();
-        const text = (event.clipboardData || window.clipboardData).getData('text');
-        document.execCommand('insertText', false, text);
+        const text = (event.clipboardData || window.clipboardData).getData('text/plain');
+        this._insertPlainText(text);
       });
 
       editorEl.addEventListener('keydown', (event) => {
         if (!(event.metaKey || event.ctrlKey)) return;
 
         const key = String(event.key || '').toLowerCase();
-        if (!['b', 'i', 'u', 'k', 'z', 'y'].includes(key)) return;
+        if (!['b', 'i', 'u', 'k', 'z', 'y', '`'].includes(key)) return;
         event.preventDefault();
 
         if (key === 'b') this._execCommand(editorEl, 'bold');
@@ -797,6 +860,12 @@
         if (key === 'k') this._execCommand(editorEl, 'createLink');
         if (key === 'z') this._execCommand(editorEl, 'undo');
         if (key === 'y') this._execCommand(editorEl, 'redo');
+        if (key === '`') this._execCommand(editorEl, 'inlineCode');
+      });
+
+      document.addEventListener('selectionchange', () => {
+        if (!editorEl.contains(document.activeElement)) return;
+        this._refreshToolbarState(editorEl);
       });
     },
 
@@ -804,21 +873,46 @@
       if (!editorEl || !cmd) return;
 
       if (cmd === 'createLink') {
-        const href = prompt('Enter URL');
+        const href = this._promptUrl();
         if (!href) return;
-        document.execCommand('createLink', false, href);
+
+        const selection = window.getSelection();
+        const hasSelection = selection && !selection.isCollapsed;
+        if (hasSelection) {
+          document.execCommand('createLink', false, href);
+        } else {
+          const label = window.prompt('Link text', href) || href;
+          this._insertHtml(editorEl, `<a href="${this._escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${this._escapeHtml(label)}</a>`);
+        }
       } else if (cmd === 'insertImage') {
-        const src = prompt('Enter image URL');
+        const src = this._promptUrl('Enter image URL');
         if (!src) return;
-        document.execCommand('insertImage', false, src);
+        const alt = window.prompt('Image alt text (optional)', '') || '';
+        this._insertHtml(
+          editorEl,
+          `<img src="${this._escapeAttribute(src)}" alt="${this._escapeAttribute(alt)}">`
+        );
+      } else if (cmd === 'insertTable') {
+        const rows = Number(window.prompt('Rows', '2') || 2);
+        const cols = Number(window.prompt('Columns', '2') || 2);
+        const safeRows = Number.isFinite(rows) ? Math.max(1, Math.min(10, Math.floor(rows))) : 2;
+        const safeCols = Number.isFinite(cols) ? Math.max(1, Math.min(8, Math.floor(cols))) : 2;
+        const bodyRows = Array.from({ length: safeRows })
+          .map(() => `<tr>${Array.from({ length: safeCols }).map(() => '<td><br></td>').join('')}</tr>`)
+          .join('');
+        this._insertHtml(editorEl, `<table><tbody>${bodyRows}</tbody></table><p><br></p>`);
+      } else if (cmd === 'inlineCode') {
+        this._toggleInlineCode(editorEl);
       } else if (cmd === 'formatBlock') {
         document.execCommand('formatBlock', false, arg || 'p');
       } else {
         document.execCommand(cmd, false, arg || null);
       }
 
+      this._sanitize(editorEl);
       editorEl.dispatchEvent(new Event('input', { bubbles: true }));
       this._syncHiddenField(editorEl, editorEl.dataset.editorName || editorEl.getAttribute('name') || '');
+      this._refreshToolbarState(editorEl);
     },
 
     _syncHiddenField(editorEl, editorName) {
@@ -842,15 +936,187 @@
       const root = doc.body.firstElementChild;
       if (!root) return;
 
-      root.querySelectorAll('script,style,iframe,object,embed').forEach((node) => node.remove());
+      const allowedTags = new Set([
+        'P', 'BR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+        'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE',
+        'A', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'PRE', 'CODE',
+        'HR', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD',
+        'IMG', 'SPAN',
+      ]);
+
+      root.querySelectorAll('script,style,iframe,object,embed,form,input,button,textarea,select').forEach((node) => node.remove());
       root.querySelectorAll('*').forEach((node) => {
+        if (!allowedTags.has(node.tagName)) {
+          const text = doc.createTextNode(node.textContent || '');
+          node.replaceWith(text);
+          return;
+        }
+
         Array.from(node.attributes).forEach((attr) => {
           const name = attr.name.toLowerCase();
-          if (name.startsWith('on') || name === 'style') node.removeAttribute(attr.name);
+          const value = String(attr.value || '');
+
+          if (name.startsWith('on') || name === 'style' || name === 'class' || name === 'id') {
+            node.removeAttribute(attr.name);
+            return;
+          }
+
+          if (node.tagName === 'A') {
+            if (!['href', 'target', 'rel'].includes(name)) {
+              node.removeAttribute(attr.name);
+              return;
+            }
+            if (name === 'href' && !this._isSafeUrl(value)) {
+              node.removeAttribute('href');
+            }
+            if (name === 'target' && value !== '_blank') {
+              node.removeAttribute('target');
+            }
+            if (name === 'rel') {
+              node.setAttribute('rel', 'noopener noreferrer');
+            }
+            return;
+          }
+
+          if (node.tagName === 'IMG') {
+            if (!['src', 'alt'].includes(name)) {
+              node.removeAttribute(attr.name);
+              return;
+            }
+            if (name === 'src' && !this._isSafeUrl(value)) {
+              node.remove();
+            }
+            return;
+          }
+
+          if ((node.tagName === 'TH' || node.tagName === 'TD') && ['colspan', 'rowspan'].includes(name)) {
+            return;
+          }
+
+          node.removeAttribute(attr.name);
         });
       });
 
       editorEl.innerHTML = root.innerHTML;
+    },
+
+    _refreshToolbarState(editorEl) {
+      if (!editorEl) return;
+      const toolbarId = editorEl.dataset.editorToolbarId;
+      if (!toolbarId) return;
+      const toolbar = document.querySelector('.h-editor-toolbar[data-editor-toolbar="' + toolbarId + '"]');
+      if (!toolbar) return;
+
+      this.stateCommands.forEach((cmd) => {
+        const active = Boolean(document.queryCommandState && document.queryCommandState(cmd));
+        toolbar.querySelectorAll('[data-cmd="' + cmd + '"]').forEach((button) => {
+          button.classList.toggle('is-active', active);
+        });
+      });
+
+      const formatSelect = toolbar.querySelector('select[data-cmd="formatBlock"]');
+      if (formatSelect && document.queryCommandValue) {
+        const value = String(document.queryCommandValue('formatBlock') || '').toLowerCase().replace(/[<>]/g, '');
+        if (value) formatSelect.value = value;
+      }
+    },
+
+    _toggleInlineCode(editorEl) {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+      const anchor = selection.anchorNode && selection.anchorNode.parentElement ? selection.anchorNode.parentElement.closest('code') : null;
+      if (anchor && editorEl.contains(anchor)) {
+        const text = document.createTextNode(anchor.textContent || '');
+        anchor.replaceWith(text);
+        return;
+      }
+
+      if (selection.isCollapsed) {
+        this._insertHtml(editorEl, '<code>code</code>');
+        return;
+      }
+
+      const fragment = range.extractContents();
+      const code = document.createElement('code');
+      code.appendChild(fragment);
+      range.insertNode(code);
+      selection.removeAllRanges();
+      const next = document.createRange();
+      next.selectNodeContents(code);
+      selection.addRange(next);
+    },
+
+    _insertHtml(editorEl, html) {
+      editorEl.focus();
+      if (document.execCommand) {
+        document.execCommand('insertHTML', false, html);
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = html;
+      const fragment = document.createDocumentFragment();
+      while (wrapper.firstChild) fragment.appendChild(wrapper.firstChild);
+      range.insertNode(fragment);
+    },
+
+    _insertPlainText(text) {
+      if (!text) return;
+      if (document.execCommand) {
+        document.execCommand('insertText', false, text);
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    },
+
+    _promptUrl(label = 'Enter URL') {
+      const value = (window.prompt(label, 'https://') || '').trim();
+      if (!value) return '';
+      if (!this._isSafeUrl(value)) {
+        window.alert('Only http(s), mailto, tel and relative URLs are allowed.');
+        return '';
+      }
+      return value;
+    },
+
+    _isSafeUrl(url) {
+      const value = String(url || '').trim();
+      if (!value) return false;
+      if (value.startsWith('/') || value.startsWith('#')) return true;
+      return /^(https?:\/\/|mailto:|tel:)/i.test(value);
+    },
+
+    _editorId(editorEl) {
+      if (editorEl.dataset.editorUid) return editorEl.dataset.editorUid;
+      editorEl.dataset.editorUid = 'editor-' + Math.random().toString(36).slice(2, 10);
+      return editorEl.dataset.editorUid;
+    },
+
+    _escapeHtml(text) {
+      return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    },
+
+    _escapeAttribute(text) {
+      return this._escapeHtml(text).replace(/`/g, '&#096;');
     },
   };
 

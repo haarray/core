@@ -124,7 +124,12 @@ input,select,textarea { font-family:var(--fb); }
   overflow-x: hidden;
   padding-bottom: 8px;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bd2) transparent;
 }
+.h-sidebar-nav::-webkit-scrollbar { width: 6px; }
+.h-sidebar-nav::-webkit-scrollbar-thumb { background: var(--bd2); border-radius: 10px; }
 .h-nav-sec { padding:4px 16px 5px; margin-top:14px; font-family:var(--fm); font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:var(--t3); }
 .h-nav-item {
   display:flex; align-items:center; gap:9px;

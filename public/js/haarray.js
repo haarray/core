@@ -94,6 +94,7 @@
         const toggle = group.querySelector('[data-nav-toggle]');
         if (toggle) {
           toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+          toggle.classList.toggle('active', hasActiveChild);
         }
       });
     },

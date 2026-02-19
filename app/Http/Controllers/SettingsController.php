@@ -47,74 +47,9 @@ class SettingsController extends Controller
 
         $canManageSettings = (bool) ($viewer && $viewer->can('manage settings'));
         $canManageUsers = (bool) ($viewer && $viewer->can('manage users'));
-
-        $opsSnapshot = [];
-        $dbBrowser = [];
-        $recentActivities = $canManageSettings ? $this->recentActivities(120) : collect();
-        if ($canManageSettings && $opsUiEnabled) {
-            $opsSnapshot = $this->buildOpsSnapshot($dbConnectionInfo['connection']);
-            $dbBrowser = $this->buildDbBrowser((string) request()->query('db_table', ''), $dbConnectionInfo['connection']);
-        }
-
-        return view('settings.index', [
-            'fields'      => $fields,
-            'values'      => $values,
-            'sections'    => $this->sections(),
-            'envWritable' => $this->envWritable(),
-            'isAdmin'     => $canManageSettings || $canManageUsers || (bool) ($viewer && $viewer->isAdmin()),
-            'canManageSettings' => $canManageSettings,
-            'canManageUsers' => $canManageUsers,
-            'hasSpatiePermissions' => $this->permissionTablesReady(),
-            'opsUiEnabled' => $opsUiEnabled,
-            'opsSnapshot' => $opsSnapshot,
-            'dbBrowser' => $dbBrowser,
-            'recentActivities' => $recentActivities,
-            'opsOutput' => (string) session('ops_output', ''),
-            'mlDiagnostics' => $this->buildMlDiagnostics(),
-            'mlProbeResult' => session('ml_probe_result', []),
-            'dbConnectionInfo' => $dbConnectionInfo,
-            'uiBranding' => $uiBranding,
-            'mediaLibrary' => $mediaLibrary,
-        ]);
-    }
-
-    public function users(Request $request): View
-    {
-        $viewer = $request->user();
-        $this->assertCan($request, 'view users', 'You do not have permission to view users.');
-
+        $canViewUsers = (bool) ($viewer && $viewer->can('view users'));
         $permissionTablesReady = $this->permissionTablesReady();
-        $roles = $this->availableRoleNames();
-        $permissions = $this->availablePermissionNames();
-        $canManageUsers = (bool) ($viewer && $viewer->can('manage users'));
 
-        $query = User::query()->orderBy('name');
-        if ($permissionTablesReady) {
-            $query->with(['roles:id,name', 'permissions:id,name']);
-        }
-        $users = $query->get();
-
-        $selectedUserId = (int) $request->query('user', 0);
-        $selectedUser = $users->firstWhere('id', $selectedUserId);
-        if (!$selectedUser instanceof User) {
-            $selectedUser = $users->first();
-        }
-
-        return view('settings.users', [
-            'users' => $users,
-            'selectedUser' => $selectedUser,
-            'roles' => $roles,
-            'permissionOptions' => $permissions,
-            'hasSpatiePermissions' => $permissionTablesReady,
-            'canManageUsers' => $canManageUsers,
-        ]);
-    }
-
-    public function rbac(Request $request): View
-    {
-        $this->assertCan($request, 'manage settings', 'Only authorized admins can manage RBAC.');
-
-        $permissionTablesReady = $this->permissionTablesReady();
         $roles = collect();
         $roleNames = $this->availableRoleNames();
         $permissionOptions = collect($this->availablePermissionNames());
@@ -141,14 +76,33 @@ class SettingsController extends Controller
             })->values();
         }
 
-        $editRoleId = (int) $request->query('role', 0);
-        $editRole = null;
-        if ($permissionTablesReady && $editRoleId > 0) {
-            $editRole = Role::query()->with('permissions')->find($editRoleId);
+        $users = collect();
+        if ($canManageUsers || $canViewUsers) {
+            $query = User::query()->orderBy('name');
+            if ($permissionTablesReady) {
+                $query->with(['roles:id,name', 'permissions:id,name']);
+            }
+            $users = $query->get();
         }
 
-        return view('settings.rbac', [
-            'hasSpatiePermissions' => $permissionTablesReady,
+        $opsSnapshot = [];
+        $dbBrowser = [];
+        $recentActivities = $canManageSettings ? $this->recentActivities(120) : collect();
+        if ($canManageSettings && $opsUiEnabled) {
+            $opsSnapshot = $this->buildOpsSnapshot($dbConnectionInfo['connection']);
+            $dbBrowser = $this->buildDbBrowser((string) request()->query('db_table', ''), $dbConnectionInfo['connection']);
+        }
+
+        return view('settings.index', [
+            'fields'      => $fields,
+            'values'      => $values,
+            'sections'    => $this->sections(),
+            'envWritable' => $this->envWritable(),
+            'isAdmin'     => $canManageSettings || $canManageUsers || (bool) ($viewer && $viewer->isAdmin()),
+            'canManageSettings' => $canManageSettings,
+            'canManageUsers' => $canManageUsers,
+            'canViewUsers' => $canViewUsers,
+            'users' => $users,
             'roles' => $roles,
             'roleNames' => $roleNames,
             'permissionOptions' => $permissionOptions,
@@ -158,7 +112,37 @@ class SettingsController extends Controller
             'roleExtraPermissionMap' => $roleExtraPermissionMap,
             'roleCatalog' => $roleCatalog,
             'protectedRoleNames' => $this->protectedRoleNames(),
-            'editRole' => $editRole,
+            'hasSpatiePermissions' => $permissionTablesReady,
+            'opsUiEnabled' => $opsUiEnabled,
+            'opsSnapshot' => $opsSnapshot,
+            'dbBrowser' => $dbBrowser,
+            'recentActivities' => $recentActivities,
+            'opsOutput' => (string) session('ops_output', ''),
+            'mlDiagnostics' => $this->buildMlDiagnostics(),
+            'mlProbeResult' => session('ml_probe_result', []),
+            'dbConnectionInfo' => $dbConnectionInfo,
+            'uiBranding' => $uiBranding,
+            'mediaLibrary' => $mediaLibrary,
+        ]);
+    }
+
+    public function users(Request $request): RedirectResponse
+    {
+        $this->assertCan($request, 'view users', 'You do not have permission to view users.');
+
+        return redirect()->route('settings.index', [
+            'tab' => 'settings-users',
+            'user' => (int) $request->query('user', 0),
+        ]);
+    }
+
+    public function rbac(Request $request): RedirectResponse
+    {
+        $this->assertCan($request, 'manage settings', 'Only authorized admins can manage RBAC.');
+
+        return redirect()->route('settings.index', [
+            'tab' => 'settings-roles',
+            'role' => (int) $request->query('role', 0),
         ]);
     }
 
@@ -588,6 +572,11 @@ class SettingsController extends Controller
                     $level = $manageEnabled ? 'manage' : ($viewEnabled ? 'view' : 'none');
                 } else {
                     $level = strtolower((string) $rawLevel);
+                    if ($level === 'active') {
+                        $level = 'view';
+                    } elseif ($level === 'inactive') {
+                        $level = 'none';
+                    }
                     if (!in_array($level, ['none', 'view', 'manage'], true)) {
                         $level = 'none';
                     }

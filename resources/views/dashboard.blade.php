@@ -1,5 +1,5 @@
 {{-- FILE: resources/views/dashboard.blade.php --}}
-@extends('layouts.haarray')
+@extends('layouts.app')
 
 @section('title', 'Dashboard')
 @section('page_title', 'Dashboard')

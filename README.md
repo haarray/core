@@ -13,14 +13,15 @@ Laravel starter kit for Haarray products with progressive SPA behavior, reusable
 - Custom CKEditor-style component (`HEditor`)
 - Yajra DataTables + server-side table endpoints
 - Bootstrap + Font Awesome integration (open source)
-- Dedicated sidebar docs + settings pages
-- Dedicated `Users` and `Access & RBAC` pages (no modal-only CRUD)
+- Dedicated sidebar docs + Settings control center
+- Unified Settings tabs: App & Branding, Users, Roles & Access, Activity, Security, Notifications, System, Diagnostics
+- Reusable Create/Edit user modal form (single form for both actions)
 - UI-based `.env` settings editor for whitelisted keys
 - Optional PWA install flow (manifest + service worker + install prompt)
 - Settings app-branding panel with DB-backed app name/logo/favicon/app icon/theme color
 - Activity tab with Yajra DataTable + export
 - Diagnostics tabs with DB browser/log/ML checks/user activity visibility
-- Multi-level Settings sidebar navigation with dedicated links for app/activity/users/RBAC
+- Collapsible sidebar settings group with query-aware tab links
 
 ## Tech profile
 
@@ -57,7 +58,8 @@ haarray-core/
 │   └── icons/icons.svg
 ├── app/Http/Controllers/SettingsController.php
 ├── resources/views/
-│   ├── layouts/haarray.blade.php
+│   ├── layouts/app.blade.php
+│   ├── layouts/haarray.blade.php (compat alias)
 │   ├── components/
 │   │   ├── icon.blade.php
 │   │   ├── editor.blade.php
@@ -66,8 +68,8 @@ haarray-core/
 │   ├── docs/starter-kit.blade.php
 │   └── settings/
 │       ├── index.blade.php
-│       ├── users.blade.php
-│       └── rbac.blade.php
+│       ├── users.blade.php (legacy reference page)
+│       └── rbac.blade.php (legacy reference page)
 ├── docs/
 │   ├── SPA.md
 │   └── STARTER_KIT.md
@@ -95,7 +97,7 @@ Served bundle:
 - `HSelect`: searchable single/multi select
 - `HSelectRemote`: Select2 AJAX mode with image support
 - `HDataTable`: DataTables initializer compatible with SPA swaps
-- `HEditor`: rich text editor with hidden field sync
+- `HEditor`: advanced rich text editor (headings/lists/alignment/link/image/table/code + hidden field sync)
 - `HIcons`: runtime icon helper
 - `HSvgPie`: lightweight pie charts
 
@@ -135,7 +137,7 @@ document.addEventListener('hspa:afterSwap', (event) => {
 - Run `php artisan config:cache`, `route:cache`, `view:cache`
 - Build and serve versioned assets (`npm run build` when bundling custom assets)
 - Ensure DB credentials, queue, mail, and cache drivers are configured
-- Add automated tests for your domain modules before deployment
+- Verify role/permission assignments and route visibility before deployment
 
 ## Running modes
 
@@ -154,6 +156,10 @@ php -S 127.0.0.1:8000 server.php
 ### XAMPP/shared hosting (project root web path)
 
 - Root `.htaccess` rewrites traffic into `/public` automatically.
+- Root `server.php` supports base-path style routing for:
+  - `/harray-core`
+  - `/haaray-core`
+  - `/haaray`
 - Both project URLs are supported:
   - `http://localhost/harray-core`
   - `http://localhost/haaray-core` (compatibility alias)

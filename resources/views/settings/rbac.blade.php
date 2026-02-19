@@ -1,4 +1,4 @@
-@extends('layouts.haarray')
+@extends('layouts.app')
 
 @section('title', 'Access & RBAC')
 @section('page_title', 'Access & RBAC')

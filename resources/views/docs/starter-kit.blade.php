@@ -1,4 +1,4 @@
-@extends('layouts.haarray')
+@extends('layouts.app')
 
 @section('title', 'Starter Kit Docs')
 @section('page_title', 'Starter Kit')
@@ -96,8 +96,8 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
           <li>For remote datasets, use <code>data-select2-remote</code> + <code>data-endpoint</code> on a native <code>&lt;select&gt;</code>.</li>
           <li>Keep page content inside <code>#h-spa-content</code> for partial navigation.</li>
           <li>Include <code>&lt;x-confirm-modal /&gt;</code> once in the layout.</li>
-          <li>Add sidebar links for <code>Docs</code> and <code>Settings</code> routes so team members can navigate core references and env UI quickly.</li>
-          <li>For Settings navigation, use query-aware URLs like <code>/settings?tab=settings-activity</code> and dedicated pages like <code>/settings/users</code> / <code>/settings/rbac</code>.</li>
+          <li>Add sidebar links for <code>Docs</code> and a single <code>Settings</code> control center route so the team can manage app, users, RBAC, and diagnostics from one place.</li>
+          <li>For Settings navigation, use query-aware URLs like <code>/settings?tab=settings-activity</code> and <code>/settings?tab=settings-roles</code>.</li>
           <li>Use Blade components (<code>&lt;x-icon&gt;</code>, <code>&lt;x-select&gt;</code>, <code>&lt;x-editor&gt;</code>) for consistent scaffolding.</li>
         </ol>
       </section>
@@ -314,8 +314,8 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
       <section class="doc-block">
         <h3>Rich Editor (HEditor)</h3>
         <p>
-          Use <code>&lt;x-editor&gt;</code> for a lightweight CKEditor-style block with toolbar and automatic hidden-field syncing.
-          Works inside normal Laravel forms.
+          Use <code>&lt;x-editor&gt;</code> for a lightweight CKEditor-style block with a richer toolbar:
+          headings, lists, alignment, links, images, tables, code blocks, undo/redo, and hidden-field syncing.
         </p>
 
         <pre><code>&lt;x-editor
