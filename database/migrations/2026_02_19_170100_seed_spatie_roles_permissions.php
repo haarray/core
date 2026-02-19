@@ -45,6 +45,7 @@ return new class extends Migration
         }
 
         $roleMap = [
+            'super-admin' => $this->permissions,
             'admin' => $this->permissions,
             'manager' => [
                 'view dashboard',
@@ -67,6 +68,11 @@ return new class extends Migration
                 'view docs',
                 'view settings',
                 'view notifications',
+            ],
+            'test-role' => [
+                'view dashboard',
+                'view docs',
+                'view settings',
             ],
         ];
 
@@ -99,11 +105,11 @@ return new class extends Migration
                 }
             }
 
-            if (!User::role('admin')->exists()) {
+            if (!User::role('super-admin')->exists() && !User::role('admin')->exists()) {
                 $firstUser = User::query()->oldest('id')->first();
                 if ($firstUser) {
-                    $firstUser->syncRoles(['admin']);
-                    $firstUser->forceFill(['role' => 'admin'])->save();
+                    $firstUser->syncRoles(['super-admin']);
+                    $firstUser->forceFill(['role' => 'super-admin'])->save();
                 }
             }
         }
@@ -119,7 +125,7 @@ return new class extends Migration
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        Role::whereIn('name', ['admin', 'manager', 'user'])->get()->each(function (Role $role) {
+        Role::whereIn('name', ['super-admin', 'admin', 'manager', 'user', 'test-role'])->get()->each(function (Role $role) {
             $role->syncPermissions([]);
             $role->delete();
         });

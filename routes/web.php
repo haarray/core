@@ -52,9 +52,33 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/users/{user}/access', fn () => redirect()->route('settings.index'))
         ->middleware('permission:view settings');
 
+    Route::post('/settings/users', [SettingsController::class, 'storeUser'])
+        ->middleware('permission:manage users')
+        ->name('settings.users.store');
+
+    Route::put('/settings/users/{user}', [SettingsController::class, 'updateUser'])
+        ->middleware('permission:manage users')
+        ->name('settings.users.update');
+
+    Route::delete('/settings/users/{user}', [SettingsController::class, 'deleteUser'])
+        ->middleware('permission:manage users')
+        ->name('settings.users.delete');
+
     Route::post('/settings/roles/matrix', [SettingsController::class, 'updateRoleMatrix'])
         ->middleware('permission:manage settings')
         ->name('settings.roles.matrix');
+
+    Route::post('/settings/roles', [SettingsController::class, 'storeRole'])
+        ->middleware('permission:manage settings')
+        ->name('settings.roles.store');
+
+    Route::put('/settings/roles/{role}', [SettingsController::class, 'updateRole'])
+        ->middleware('permission:manage settings')
+        ->name('settings.roles.update');
+
+    Route::delete('/settings/roles/{role}', [SettingsController::class, 'deleteRole'])
+        ->middleware('permission:manage settings')
+        ->name('settings.roles.delete');
 
     Route::post('/settings/ops/action', [SettingsController::class, 'runOpsAction'])
         ->middleware('permission:manage settings')

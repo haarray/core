@@ -133,7 +133,7 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
         <h3>Bootstrap + Font Awesome</h3>
         <p>
           Bootstrap and Font Awesome are bundled globally. Use those classes directly and Haarray theme variables
-          will skin them through <code>haarray.bootstrap-bridge.css</code>.
+          will skin them through <code>haarray.app.css</code> (includes bridge + starter styles).
         </p>
 
         <pre><code>&lt;button class="btn btn-primary"&gt;
@@ -232,6 +232,7 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
   data-select2-remote
   data-endpoint="{{ route('ui.options.leads') }}"
   data-placeholder="Search leads..."
+  data-dropdown-parent=".hl-docs"
   data-min-input="1"&gt;
   &lt;option value="{{ auth()->id() }}" selected data-image="{{ $leadAvatar }}"&gt;{{ auth()->user()->name }}&lt;/option&gt;
 &lt;/select&gt;</code></pre>
@@ -243,6 +244,7 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
             data-select2-remote
             data-endpoint="{{ route('ui.options.leads') }}"
             data-placeholder="Search leads..."
+            data-dropdown-parent=".hl-docs"
             data-min-input="1"
           >
             <option value="{{ auth()->id() }}" selected data-image="{{ $leadAvatar }}">{{ auth()->user()->name }}</option>
@@ -297,7 +299,7 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
         <pre><code>&lt;table
   data-h-datatable
   data-endpoint="{{ route('ui.datatables.users') }}"
-  data-page-length="8"&gt;
+  data-page-length="10"&gt;
   &lt;thead&gt;
     &lt;tr&gt;
       &lt;th data-col="id"&gt;ID&lt;/th&gt;

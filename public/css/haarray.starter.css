@@ -787,6 +787,49 @@
   min-width: 200px;
 }
 
+.hl-settings .h-perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--hl-border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.hl-settings .h-perm-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--hl-text-soft);
+  padding: 6px 8px;
+  border: 1px solid var(--hl-border);
+  border-radius: 8px;
+  background: var(--hl-bg-soft);
+}
+
+.hl-settings .h-perm-item input[type='checkbox'] {
+  margin-top: 0;
+}
+
+.hl-settings .h-ops-metric-label {
+  font-family: var(--hl-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--hl-text-muted);
+}
+
+.hl-settings .h-ops-metric-value {
+  margin-top: 6px;
+  color: var(--hl-text);
+  font-family: var(--hl-head);
+  font-size: 16px;
+  line-height: 1.2;
+}
+
 .hl-docs .doc-toc {
   position: sticky;
   top: 86px;

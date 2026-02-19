@@ -649,7 +649,7 @@
       const hasFile = $form.find('input[type="file"]').length > 0;
       const token = $('meta[name="csrf-token"]').attr('content');
 
-      if (token && !$form.find('input[name="_token"]').length) {
+      if (token && method !== 'GET' && !$form.find('input[name="_token"]').length) {
         $form.append(`<input type="hidden" name="_token" value="${token}">`);
       }
 
@@ -688,7 +688,7 @@
       this.createProgress();
       this.bindLinks();
       this.bindForms();
-      this.highlightActiveNav(window.location.pathname);
+      this.highlightActiveNav(window.location.pathname + window.location.search);
 
       window.addEventListener('popstate', () => {
         this.load(window.location.pathname + window.location.search);
@@ -855,7 +855,7 @@
 
           const resolvedUrl = (xhr && xhr.responseURL) || requestUrl || window.location.href;
           const next = new URL(resolvedUrl, window.location.href);
-          const nextPath = next.pathname;
+          const nextPath = next.pathname + next.search;
 
           this._syncTopbar(doc);
           this._syncDynamicRegions(doc);
@@ -1041,11 +1041,20 @@
       HCore.emit('hspa:afterLoad', payload);
     },
 
-    highlightActiveNav(pathname) {
-      if (!pathname) return;
+    highlightActiveNav(pathnameWithQuery) {
+      if (!pathnameWithQuery) return;
 
-      const currentPath = pathname.replace(/\/$/, '') || '/';
-      document.querySelectorAll('.h-nav-item').forEach((item) => {
+      let currentUrl;
+      try {
+        currentUrl = new URL(pathnameWithQuery, window.location.origin);
+      } catch (error) {
+        currentUrl = new URL(window.location.href);
+      }
+
+      const currentPath = currentUrl.pathname.replace(/\/$/, '') || '/';
+      const currentQuery = currentUrl.searchParams;
+
+      document.querySelectorAll('.h-nav-item, .h-nav-sub-item').forEach((item) => {
         const href = item.getAttribute('href');
         if (!href || href === '#') return;
 
@@ -1056,7 +1065,19 @@
           return;
         }
 
-        item.classList.toggle('active', navPath === currentPath);
+        let isActive = navPath === currentPath;
+        const matchQueryRaw = String(item.getAttribute('data-match-query') || '').trim();
+
+        if (isActive && matchQueryRaw !== '') {
+          const queryPairs = matchQueryRaw.split('&').map((pair) => pair.trim()).filter(Boolean);
+          isActive = queryPairs.every((pair) => {
+            const [key, value = ''] = pair.split('=');
+            if (!key) return true;
+            return currentQuery.get(key) === value;
+          });
+        }
+
+        item.classList.toggle('active', isActive);
       });
     },
   };
@@ -1275,8 +1296,14 @@
     setup(container) {
       if (!container || container.dataset.hTabsReady === '1') return;
 
-      const buttons = Array.from(container.querySelectorAll('[data-tab-btn]'));
-      const panels = Array.from(container.querySelectorAll('[data-tab-panel]'));
+      const buttons = Array.from(container.querySelectorAll('[data-tab-btn]')).filter((button) => {
+        const owner = button.closest('[data-ui-tabs]');
+        return owner === container;
+      });
+      const panels = Array.from(container.querySelectorAll('[data-tab-panel]')).filter((panel) => {
+        const owner = panel.closest('[data-ui-tabs]');
+        return owner === container;
+      });
       if (!buttons.length || !panels.length) return;
 
       const fallback = buttons[0].dataset.tabBtn;

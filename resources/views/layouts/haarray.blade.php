@@ -109,6 +109,39 @@
       Settings
     </a>
   @endcan
+  @if(auth()->user()->can('view settings'))
+    <div class="h-nav-sub">
+      <a
+        data-spa
+        href="{{ route('settings.index', ['tab' => 'settings-access']) }}"
+        data-match-query="tab=settings-access"
+        class="h-nav-sub-item {{ request()->routeIs('settings.*') && request()->query('tab') === 'settings-access' ? 'active' : '' }}"
+      >
+        <i class="fa-solid fa-shield-halved fa-fw"></i>
+        Access
+      </a>
+      @if(auth()->user()->can('manage settings'))
+        <a
+          data-spa
+          href="{{ route('settings.index', ['tab' => 'settings-ops', 'ops_tab' => 'ops-overview']) }}"
+          data-match-query="tab=settings-ops&ops_tab=ops-overview"
+          class="h-nav-sub-item {{ request()->routeIs('settings.*') && request()->query('tab') === 'settings-ops' && request()->query('ops_tab') === 'ops-overview' ? 'active' : '' }}"
+        >
+          <i class="fa-solid fa-gauge-high fa-fw"></i>
+          Diagnostics
+        </a>
+        <a
+          data-spa
+          href="{{ route('settings.index', ['tab' => 'settings-ops', 'ops_tab' => 'ops-ml']) }}"
+          data-match-query="tab=settings-ops&ops_tab=ops-ml"
+          class="h-nav-sub-item {{ request()->routeIs('settings.*') && request()->query('tab') === 'settings-ops' && request()->query('ops_tab') === 'ops-ml' ? 'active' : '' }}"
+        >
+          <i class="fa-solid fa-flask-vial fa-fw"></i>
+          ML Lab
+        </a>
+      @endif
+    </div>
+  @endif
 
   <div class="h-sidebar-spacer"></div>
 

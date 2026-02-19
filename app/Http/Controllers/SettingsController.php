@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Services\AdvancedMLService;
 use App\Models\User;
+use App\Models\UserActivity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -44,14 +45,25 @@ class SettingsController extends Controller
         $permissionOptions = collect($this->availablePermissionNames());
         $roleAccessMap = [];
         $roleExtraPermissionMap = [];
+        $roleCatalog = collect();
         $accessModules = $this->accessModules();
         $modulePermissionNames = $this->modulePermissionNames($accessModules);
 
         if ($permissionTablesReady) {
             $roles = Role::query()->with('permissions')->orderBy('name')->get();
+            $roleUserCounts = $this->roleUserCounts();
             $roleNames = $roles->pluck('name')->values()->all();
             $roleAccessMap = $this->buildRoleAccessMap($roles, $accessModules);
             $roleExtraPermissionMap = $this->buildRoleExtraPermissionMap($roles, $modulePermissionNames);
+            $roleCatalog = $roles->map(function (Role $role) use ($roleUserCounts) {
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'permissions' => $role->permissions->pluck('name')->values()->all(),
+                    'permissions_count' => $role->permissions->count(),
+                    'users_count' => (int) ($roleUserCounts[$role->id] ?? 0),
+                ];
+            })->values();
         }
 
         $users = collect();
@@ -64,8 +76,12 @@ class SettingsController extends Controller
         }
 
         $opsSnapshot = [];
+        $dbBrowser = [];
+        $recentActivities = collect();
         if ($canManageSettings && $opsUiEnabled) {
             $opsSnapshot = $this->buildOpsSnapshot();
+            $dbBrowser = $this->buildDbBrowser((string) request()->query('db_table', ''));
+            $recentActivities = $this->recentActivities(120);
         }
 
         return view('settings.index', [
@@ -82,11 +98,15 @@ class SettingsController extends Controller
             'modulePermissionNames' => $modulePermissionNames,
             'roleAccessMap' => $roleAccessMap,
             'roleExtraPermissionMap' => $roleExtraPermissionMap,
+            'roleCatalog' => $roleCatalog,
+            'protectedRoleNames' => $this->protectedRoleNames(),
             'canManageSettings' => $canManageSettings,
             'canManageUsers' => $canManageUsers,
             'hasSpatiePermissions' => $permissionTablesReady,
             'opsUiEnabled' => $opsUiEnabled,
             'opsSnapshot' => $opsSnapshot,
+            'dbBrowser' => $dbBrowser,
+            'recentActivities' => $recentActivities,
             'opsOutput' => (string) session('ops_output', ''),
             'mlDiagnostics' => $this->buildMlDiagnostics(),
             'mlProbeResult' => session('ml_probe_result', []),
@@ -258,6 +278,191 @@ class SettingsController extends Controller
         return back()->with('success', 'Role access matrix updated successfully.');
     }
 
+    public function storeRole(Request $request): RedirectResponse
+    {
+        $this->assertCan($request, 'manage settings', 'Only authorized admins can create roles.');
+
+        if (!$this->permissionTablesReady()) {
+            return back()->with('error', 'Spatie permission tables are not ready yet.');
+        }
+
+        $allowedPermissions = $this->availablePermissionNames();
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:80', 'regex:/^[a-zA-Z0-9 _-]+$/', 'unique:roles,name'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', Rule::in($allowedPermissions)],
+        ]);
+
+        $role = Role::create([
+            'name' => trim((string) $validated['name']),
+            'guard_name' => 'web',
+        ]);
+
+        $permissions = $this->normalizedPermissions($validated['permissions'] ?? [], $allowedPermissions);
+        $role->syncPermissions($permissions);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        return back()->with('success', "Role {$role->name} created successfully.");
+    }
+
+    public function updateRole(Request $request, Role $role): RedirectResponse
+    {
+        $this->assertCan($request, 'manage settings', 'Only authorized admins can update roles.');
+
+        if (!$this->permissionTablesReady()) {
+            return back()->with('error', 'Spatie permission tables are not ready yet.');
+        }
+
+        $allowedPermissions = $this->availablePermissionNames();
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:80', 'regex:/^[a-zA-Z0-9 _-]+$/', Rule::unique('roles', 'name')->ignore($role->id)],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', Rule::in($allowedPermissions)],
+        ]);
+
+        $oldName = $role->name;
+        $newName = trim((string) $validated['name']);
+        if (in_array($oldName, $this->protectedRoleNames(), true) && $oldName !== $newName) {
+            return back()->with('error', "Role {$oldName} is protected and cannot be renamed.");
+        }
+
+        $role->name = $newName;
+        $role->save();
+
+        $permissions = $this->normalizedPermissions($validated['permissions'] ?? [], $allowedPermissions);
+        $role->syncPermissions($permissions);
+
+        if ($oldName !== $newName) {
+            User::query()->where('role', $oldName)->update(['role' => $newName]);
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        return back()->with('success', "Role {$role->name} updated successfully.");
+    }
+
+    public function deleteRole(Request $request, Role $role): RedirectResponse
+    {
+        $this->assertCan($request, 'manage settings', 'Only authorized admins can delete roles.');
+
+        if (!$this->permissionTablesReady()) {
+            return back()->with('error', 'Spatie permission tables are not ready yet.');
+        }
+
+        if (in_array($role->name, $this->protectedRoleNames(), true)) {
+            return back()->with('error', "Role {$role->name} is protected and cannot be deleted.");
+        }
+
+        $assignedUsers = (int) ($this->roleUserCounts()[$role->id] ?? 0);
+        if ($assignedUsers > 0) {
+            return back()->with('error', "Role {$role->name} is assigned to {$assignedUsers} user(s). Reassign them first.");
+        }
+
+        $role->delete();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        return back()->with('success', 'Role deleted successfully.');
+    }
+
+    public function storeUser(Request $request): RedirectResponse
+    {
+        $this->assertCan($request, 'manage users', 'Only authorized users can create accounts.');
+
+        $availableRoles = $this->availableRoleNames();
+        $availablePermissions = $this->availablePermissionNames();
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8'],
+            'role' => ['required', 'string', Rule::in($availableRoles)],
+            'telegram_chat_id' => ['nullable', 'string', 'max:255'],
+            'receive_in_app_notifications' => ['nullable', 'boolean'],
+            'receive_telegram_notifications' => ['nullable', 'boolean'],
+            'browser_notifications_enabled' => ['nullable', 'boolean'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', Rule::in($availablePermissions)],
+        ]);
+
+        $user = User::create([
+            'name' => trim((string) $validated['name']),
+            'email' => strtolower(trim((string) $validated['email'])),
+            'password' => (string) $validated['password'],
+            'role' => (string) $validated['role'],
+            'telegram_chat_id' => $validated['telegram_chat_id'] ?? null,
+            'receive_in_app_notifications' => (bool) $request->boolean('receive_in_app_notifications'),
+            'receive_telegram_notifications' => (bool) $request->boolean('receive_telegram_notifications'),
+            'browser_notifications_enabled' => (bool) $request->boolean('browser_notifications_enabled'),
+        ]);
+
+        if ($this->permissionTablesReady()) {
+            $user->syncRoles([(string) $validated['role']]);
+            $permissions = $this->normalizedPermissions($validated['permissions'] ?? [], $availablePermissions);
+            $user->syncPermissions($permissions);
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        }
+
+        return back()->with('success', "User {$user->name} created successfully.");
+    }
+
+    public function updateUser(Request $request, User $user): RedirectResponse
+    {
+        $this->assertCan($request, 'manage users', 'Only authorized users can update accounts.');
+
+        $availableRoles = $this->availableRoleNames();
+        $availablePermissions = $this->availablePermissionNames();
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'password' => ['nullable', 'string', 'min:8'],
+            'role' => ['required', 'string', Rule::in($availableRoles)],
+            'telegram_chat_id' => ['nullable', 'string', 'max:255'],
+            'receive_in_app_notifications' => ['nullable', 'boolean'],
+            'receive_telegram_notifications' => ['nullable', 'boolean'],
+            'browser_notifications_enabled' => ['nullable', 'boolean'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', Rule::in($availablePermissions)],
+        ]);
+
+        $payload = [
+            'name' => trim((string) $validated['name']),
+            'email' => strtolower(trim((string) $validated['email'])),
+            'role' => (string) $validated['role'],
+            'telegram_chat_id' => $validated['telegram_chat_id'] ?? null,
+            'receive_in_app_notifications' => (bool) $request->boolean('receive_in_app_notifications'),
+            'receive_telegram_notifications' => (bool) $request->boolean('receive_telegram_notifications'),
+            'browser_notifications_enabled' => (bool) $request->boolean('browser_notifications_enabled'),
+        ];
+
+        if (!empty($validated['password'])) {
+            $payload['password'] = (string) $validated['password'];
+        }
+
+        $user->update($payload);
+
+        if ($this->permissionTablesReady()) {
+            $user->syncRoles([(string) $validated['role']]);
+            $permissions = $this->normalizedPermissions($validated['permissions'] ?? [], $availablePermissions);
+            $user->syncPermissions($permissions);
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        }
+
+        return back()->with('success', "User {$user->name} updated successfully.");
+    }
+
+    public function deleteUser(Request $request, User $user): RedirectResponse
+    {
+        $this->assertCan($request, 'manage users', 'Only authorized users can delete accounts.');
+
+        if ((int) $request->user()?->id === (int) $user->id) {
+            return back()->with('error', 'You cannot delete your own account.');
+        }
+
+        $name = $user->name;
+        $user->delete();
+
+        return back()->with('success', "User {$name} deleted successfully.");
+    }
+
     public function updateMySecurity(Request $request): RedirectResponse
     {
         $user = $request->user();
@@ -300,6 +505,7 @@ class SettingsController extends Controller
                 'composer_dump_autoload',
                 'optimize_clear',
                 'migrate_status',
+                'fix_permissions',
             ])],
         ]);
 
@@ -312,6 +518,7 @@ class SettingsController extends Controller
             'composer_dump_autoload' => $this->runShell('composer dump-autoload -o', 90),
             'optimize_clear' => $this->runShell('php artisan optimize:clear', 90),
             'migrate_status' => $this->runShell('php artisan migrate:status --no-ansi', 90),
+            'fix_permissions' => $this->runShell('chmod -R 0777 storage bootstrap/cache', 30),
             default => ['ok' => false, 'exit_code' => 1, 'output' => 'Invalid action.'],
         };
 
@@ -828,7 +1035,7 @@ class SettingsController extends Controller
             }
         }
 
-        return ['admin', 'manager', 'user'];
+        return ['super-admin', 'admin', 'manager', 'user', 'test-role'];
     }
 
     /**
@@ -962,6 +1169,53 @@ class SettingsController extends Controller
         return $map;
     }
 
+    /**
+     * @param array<int, string> $selected
+     * @param array<int, string> $allowed
+     * @return array<int, string>
+     */
+    private function normalizedPermissions(array $selected, array $allowed): array
+    {
+        $allowedSet = array_fill_keys($allowed, true);
+
+        return array_values(array_filter(array_map(
+            fn ($permission) => trim((string) $permission),
+            $selected
+        ), fn (string $permission) => $permission !== '' && isset($allowedSet[$permission])));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function protectedRoleNames(): array
+    {
+        return ['super-admin', 'admin'];
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function roleUserCounts(): array
+    {
+        if (!$this->permissionTablesReady()) {
+            return [];
+        }
+
+        $tables = config('permission.table_names', []);
+        $pivotTable = $tables['model_has_roles'] ?? '';
+        if ($pivotTable === '' || !Schema::hasTable($pivotTable)) {
+            return [];
+        }
+
+        return DB::table($pivotTable)
+            ->select('role_id', DB::raw('COUNT(*) AS total'))
+            ->where('model_type', User::class)
+            ->groupBy('role_id')
+            ->pluck('total', 'role_id')
+            ->map(fn ($value) => (int) $value)
+            ->all();
+    }
+
     private function permissionTablesReady(): bool
     {
         $tables = config('permission.table_names', []);
@@ -1071,6 +1325,81 @@ class SettingsController extends Controller
         }
 
         return $tables;
+    }
+
+    /**
+     * @return array{tables:array<int, string>,selected:string,columns:array<int,string>,rows:array<int,array<string,mixed>>,row_count:int|null,error:string}
+     */
+    private function buildDbBrowser(string $selectedTable = ''): array
+    {
+        try {
+            $tables = Schema::getTableListing();
+        } catch (Throwable $exception) {
+            return [
+                'tables' => [],
+                'selected' => '',
+                'columns' => [],
+                'rows' => [],
+                'row_count' => null,
+                'error' => $exception->getMessage(),
+            ];
+        }
+
+        sort($tables);
+        $selected = in_array($selectedTable, $tables, true)
+            ? $selectedTable
+            : ((string) ($tables[0] ?? ''));
+
+        if ($selected === '') {
+            return [
+                'tables' => [],
+                'selected' => '',
+                'columns' => [],
+                'rows' => [],
+                'row_count' => 0,
+                'error' => '',
+            ];
+        }
+
+        $columns = [];
+        $rows = [];
+        $rowCount = null;
+        $error = '';
+
+        try {
+            $columns = Schema::getColumnListing($selected);
+            $rowCount = (int) DB::table($selected)->count();
+            $rows = DB::table($selected)
+                ->limit(50)
+                ->get()
+                ->map(fn ($row) => (array) $row)
+                ->values()
+                ->all();
+        } catch (Throwable $exception) {
+            $error = $exception->getMessage();
+        }
+
+        return [
+            'tables' => $tables,
+            'selected' => $selected,
+            'columns' => $columns,
+            'rows' => $rows,
+            'row_count' => $rowCount,
+            'error' => $error,
+        ];
+    }
+
+    private function recentActivities(int $limit = 120)
+    {
+        if (!Schema::hasTable('user_activities')) {
+            return collect();
+        }
+
+        return UserActivity::query()
+            ->with(['user:id,name,email'])
+            ->latest('id')
+            ->limit(max(20, min($limit, 300)))
+            ->get();
     }
 
     /**

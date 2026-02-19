@@ -11,6 +11,10 @@
 @endsection
 
 @section('content')
+@php
+  $defaultSettingsTab = (string) request()->query('tab', 'settings-profile');
+  $defaultOpsTab = (string) request()->query('ops_tab', 'ops-overview');
+@endphp
 <div class="hl-docs hl-settings">
   <div class="doc-head">
     <div>
@@ -27,7 +31,7 @@
     @endif
   </div>
 
-  <div class="h-tab-shell" data-ui-tabs data-default-tab="settings-profile">
+  <div class="h-tab-shell" id="settings-main-tabs" data-ui-tabs data-default-tab="{{ $defaultSettingsTab }}">
     <div class="h-tab-nav" role="tablist" aria-label="Settings sections">
       <button type="button" class="h-tab-btn" data-tab-btn="settings-profile">
         <i class="fa-solid fa-user-shield"></i>
@@ -300,6 +304,83 @@
           </div>
         @endif
 
+        @if($hasSpatiePermissions && $canManageSettings)
+          <div class="h-card-soft mb-3">
+            <div class="head">
+              <div style="font-family:var(--fd);font-size:16px;font-weight:700;">Roles Directory (Modal CRUD)</div>
+              <div class="h-muted" style="font-size:13px;">Create, edit permissions, and delete roles using modal forms with checkbox-based permission sets.</div>
+            </div>
+
+            <div class="body">
+              <div class="d-flex justify-content-end mb-2">
+                <button type="button" class="btn btn-primary btn-sm" data-modal-open="role-create-modal">
+                  <i class="fa-solid fa-plus me-2"></i>
+                  Create Role
+                </button>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th>Role</th>
+                      <th>Permissions</th>
+                      <th>Users</th>
+                      <th style="min-width:180px;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @forelse($roleCatalog as $roleRow)
+                      @php
+                        $roleName = (string) $roleRow['name'];
+                        $isProtected = in_array($roleName, $protectedRoleNames, true);
+                      @endphp
+                      <tr>
+                        <td>
+                          <div style="font-weight:700;">{{ strtoupper($roleName) }}</div>
+                          @if($isProtected)
+                            <div class="h-muted" style="font-size:11px;">Protected system role</div>
+                          @endif
+                        </td>
+                        <td>
+                          <span class="h-pill teal">{{ $roleRow['permissions_count'] }} permissions</span>
+                        </td>
+                        <td>{{ $roleRow['users_count'] }}</td>
+                        <td>
+                          <div class="d-flex gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              class="btn btn-outline-secondary btn-sm"
+                              data-role-edit-open
+                              data-role='@json($roleRow)'
+                            >
+                              <i class="fa-solid fa-pen-to-square me-1"></i>
+                              Edit
+                            </button>
+
+                            <form method="POST" action="{{ route('settings.roles.delete', $roleRow['id']) }}" data-spa data-confirm="true" data-confirm-title="Delete role {{ $roleName }}?" data-confirm-text="This cannot be undone." data-confirm-ok="Delete" data-confirm-cancel="Cancel">
+                              @csrf
+                              @method('DELETE')
+                              <button type="submit" class="btn btn-outline-danger btn-sm" @disabled($isProtected || ((int) $roleRow['users_count']) > 0)>
+                                <i class="fa-solid fa-trash me-1"></i>
+                                Delete
+                              </button>
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                    @empty
+                      <tr>
+                        <td colspan="4" class="h-muted">No roles available.</td>
+                      </tr>
+                    @endforelse
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        @endif
+
         @if($canManageUsers)
           <div class="h-card-soft mb-3">
             <div class="head">
@@ -333,11 +414,18 @@
 
           <div class="h-card-soft mb-3">
             <div class="head">
-              <div style="font-family:var(--fd);font-size:16px;font-weight:700;">Per-user Overrides & Notification Channels</div>
-              <div class="h-muted" style="font-size:13px;">Update role, direct permissions, and message delivery channel preferences.</div>
+              <div style="font-family:var(--fd);font-size:16px;font-weight:700;">User Accounts (Modal CRUD)</div>
+              <div class="h-muted" style="font-size:13px;">Create, update, and delete users with role + permission assignment from modal forms.</div>
             </div>
 
             <div class="body">
+              <div class="d-flex justify-content-end mb-2">
+                <button type="button" class="btn btn-primary btn-sm" data-modal-open="user-create-modal">
+                  <i class="fa-solid fa-user-plus me-2"></i>
+                  Create User
+                </button>
+              </div>
+
               <div class="table-responsive">
                 <table class="table align-middle h-access-user-table">
                   <thead>
@@ -347,7 +435,7 @@
                       <th>Direct Permissions</th>
                       <th>Channels</th>
                       <th>Telegram Chat ID</th>
-                      <th>Action</th>
+                      <th style="min-width:200px;">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -359,60 +447,69 @@
                         $currentRole = $hasSpatiePermissions
                           ? ($managedUser->roles->first()->name ?? $managedUser->role ?? 'user')
                           : ($managedUser->role ?? 'user');
+                        $canDeleteUser = auth()->id() !== $managedUser->id;
                       @endphp
                       <tr>
                         <td>
-                          <form id="access-form-{{ $managedUser->id }}" method="POST" action="{{ route('settings.users.access', $managedUser) }}" data-spa>
-                            @csrf
-                          </form>
                           <div style="font-weight:600;">{{ $managedUser->name }}</div>
                           <div class="h-muted" style="font-size:11px;">{{ $managedUser->email }}</div>
                         </td>
                         <td>
-                          <select name="role" class="form-select form-select-sm" form="access-form-{{ $managedUser->id }}">
-                            @foreach($roleNames as $roleName)
-                              <option
-                                value="{{ $roleName }}"
-                                @selected($currentRole === $roleName)
-                              >
-                                {{ strtoupper($roleName) }}
-                              </option>
-                            @endforeach
-                          </select>
+                          <span class="h-pill teal">{{ strtoupper($currentRole) }}</span>
                         </td>
                         <td style="min-width:260px;">
-                          <select
-                            name="permissions[]"
-                            class="form-select form-select-sm"
-                            multiple
-                            form="access-form-{{ $managedUser->id }}"
-                            data-permission-select
-                            data-placeholder="Direct permissions..."
-                          >
-                            @foreach($permissionOptions as $permissionName)
-                              <option value="{{ $permissionName }}" @selected(in_array($permissionName, $userDirectPermissions, true))>{{ $permissionName }}</option>
-                            @endforeach
-                          </select>
+                          <span class="h-muted" style="font-size:12px;">
+                            {{ empty($userDirectPermissions) ? 'None' : implode(', ', $userDirectPermissions) }}
+                          </span>
                         </td>
                         <td>
                           <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="receive_in_app_notifications" value="1" id="in_app_{{ $managedUser->id }}" @checked($managedUser->receive_in_app_notifications) form="access-form-{{ $managedUser->id }}">
+                            <input class="form-check-input" type="checkbox" id="in_app_{{ $managedUser->id }}" @checked($managedUser->receive_in_app_notifications) disabled>
                             <label class="form-check-label" for="in_app_{{ $managedUser->id }}">In-app</label>
                           </div>
                           <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="receive_telegram_notifications" value="1" id="tg_{{ $managedUser->id }}" @checked($managedUser->receive_telegram_notifications) form="access-form-{{ $managedUser->id }}">
+                            <input class="form-check-input" type="checkbox" id="tg_{{ $managedUser->id }}" @checked($managedUser->receive_telegram_notifications) disabled>
                             <label class="form-check-label" for="tg_{{ $managedUser->id }}">Telegram</label>
                           </div>
                           <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="browser_notifications_enabled" value="1" id="browser_{{ $managedUser->id }}" @checked($managedUser->browser_notifications_enabled) form="access-form-{{ $managedUser->id }}">
+                            <input class="form-check-input" type="checkbox" id="browser_{{ $managedUser->id }}" @checked($managedUser->browser_notifications_enabled) disabled>
                             <label class="form-check-label" for="browser_{{ $managedUser->id }}">Browser</label>
                           </div>
                         </td>
                         <td>
-                          <input type="text" name="telegram_chat_id" class="form-control form-control-sm" value="{{ $managedUser->telegram_chat_id }}" placeholder="chat_id" form="access-form-{{ $managedUser->id }}">
+                          <span class="h-muted" style="font-size:12px;">{{ $managedUser->telegram_chat_id ?: '-' }}</span>
                         </td>
                         <td>
-                          <button type="submit" class="btn btn-sm btn-outline-secondary" form="access-form-{{ $managedUser->id }}">Update</button>
+                          <div class="d-flex gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-secondary"
+                              data-user-edit-open
+                              data-user='@json([
+                                'id' => $managedUser->id,
+                                'name' => $managedUser->name,
+                                'email' => $managedUser->email,
+                                'role' => $currentRole,
+                                'telegram_chat_id' => $managedUser->telegram_chat_id,
+                                'receive_in_app_notifications' => (bool) $managedUser->receive_in_app_notifications,
+                                'receive_telegram_notifications' => (bool) $managedUser->receive_telegram_notifications,
+                                'browser_notifications_enabled' => (bool) $managedUser->browser_notifications_enabled,
+                                'permissions' => $userDirectPermissions,
+                              ])'
+                            >
+                              <i class="fa-solid fa-pen-to-square me-1"></i>
+                              Edit
+                            </button>
+
+                            <form method="POST" action="{{ route('settings.users.delete', $managedUser) }}" data-spa data-confirm="true" data-confirm-title="Delete {{ $managedUser->name }}?" data-confirm-text="This user account will be removed permanently." data-confirm-ok="Delete" data-confirm-cancel="Cancel">
+                              @csrf
+                              @method('DELETE')
+                              <button type="submit" class="btn btn-sm btn-outline-danger" @disabled(!$canDeleteUser)>
+                                <i class="fa-solid fa-trash me-1"></i>
+                                Delete
+                              </button>
+                            </form>
+                          </div>
                         </td>
                       </tr>
                     @endforeach
@@ -451,7 +548,7 @@
                   $mlChecks = collect($mlDiagnostics['checks'] ?? []);
                 @endphp
 
-                <div class="h-tab-shell h-ops-tabs" data-ui-tabs data-default-tab="ops-overview">
+                <div class="h-tab-shell h-ops-tabs" id="settings-ops-tabs" data-ui-tabs data-default-tab="{{ $defaultOpsTab }}">
                   <div class="h-tab-nav" role="tablist" aria-label="Diagnostics panels">
                     <button type="button" class="h-tab-btn" data-tab-btn="ops-overview">
                       <i class="fa-solid fa-gauge-high"></i>
@@ -497,6 +594,7 @@
                       <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="composer_dump_autoload">Composer Dump</button>
                       <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="optimize_clear">Optimize Clear</button>
                       <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="migrate_status">Migrate Status</button>
+                      <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="fix_permissions">Fix Storage Permissions</button>
                     </form>
 
                     <div class="h-note">
@@ -690,6 +788,121 @@
                   <div class="h-tab-panel" data-tab-panel="ops-logs">
                     <div class="h-card-soft mb-3">
                       <div class="head">
+                        <div style="font-family:var(--fd);font-size:14px;font-weight:700;">DB Browser (phpMyAdmin-style preview)</div>
+                        <div class="h-muted" style="font-size:12px;">Read-only browser for table rows and schema preview without leaving settings.</div>
+                      </div>
+                      <div class="body">
+                        <form method="GET" action="{{ route('settings.index') }}" class="row g-2 align-items-end mb-3" data-spa>
+                          <input type="hidden" name="tab" value="settings-ops">
+                          <input type="hidden" name="ops_tab" value="ops-logs">
+                          <div class="col-md-8">
+                            <label class="h-label" style="display:block;">Table</label>
+                            <select name="db_table" class="form-select">
+                              @foreach($dbBrowser['tables'] ?? [] as $tableName)
+                                <option value="{{ $tableName }}" @selected(($dbBrowser['selected'] ?? '') === $tableName)>{{ $tableName }}</option>
+                              @endforeach
+                            </select>
+                          </div>
+                          <div class="col-md-4">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+                              <i class="fa-solid fa-table me-2"></i>
+                              Browse
+                            </button>
+                          </div>
+                        </form>
+
+                        @if(!empty($dbBrowser['error']))
+                          <div class="alert alert-danger">{{ $dbBrowser['error'] }}</div>
+                        @endif
+
+                        @if(!empty($dbBrowser['selected']))
+                          <div class="h-note mb-2">
+                            <strong>{{ $dbBrowser['selected'] }}</strong> · Rows: {{ $dbBrowser['row_count'] ?? 0 }} · Showing up to 50 rows.
+                          </div>
+                          <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                              <thead>
+                                <tr>
+                                  @foreach($dbBrowser['columns'] ?? [] as $column)
+                                    <th>{{ $column }}</th>
+                                  @endforeach
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @forelse($dbBrowser['rows'] ?? [] as $row)
+                                  <tr>
+                                    @foreach($dbBrowser['columns'] ?? [] as $column)
+                                      @php
+                                        $cellValue = $row[$column] ?? null;
+                                        if (is_array($cellValue)) {
+                                          $cellText = json_encode($cellValue);
+                                        } elseif (is_object($cellValue)) {
+                                          $cellText = json_encode($cellValue, JSON_UNESCAPED_UNICODE);
+                                        } elseif (is_bool($cellValue)) {
+                                          $cellText = $cellValue ? 'true' : 'false';
+                                        } else {
+                                          $cellText = (string) $cellValue;
+                                        }
+                                      @endphp
+                                      <td class="h-muted" style="max-width:220px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ $cellText }}">{{ $cellText }}</td>
+                                    @endforeach
+                                  </tr>
+                                @empty
+                                  <tr>
+                                    <td colspan="{{ max(1, count($dbBrowser['columns'] ?? [])) }}" class="h-muted">No rows found for selected table.</td>
+                                  </tr>
+                                @endforelse
+                              </tbody>
+                            </table>
+                          </div>
+                        @endif
+                      </div>
+                    </div>
+
+                    <div class="h-card-soft mb-3">
+                      <div class="head">
+                        <div style="font-family:var(--fd);font-size:14px;font-weight:700;">User Activity (Default Tracking)</div>
+                        <div class="h-muted" style="font-size:12px;">Latest authenticated actions captured by middleware.</div>
+                      </div>
+                      <div class="body">
+                        <div class="table-responsive">
+                          <table class="table table-sm align-middle">
+                            <thead>
+                              <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Method</th>
+                                <th>Path</th>
+                                <th>Route</th>
+                                <th>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @forelse($recentActivities as $activity)
+                                <tr>
+                                  <td class="h-muted" style="font-size:11px;">{{ optional($activity->created_at)->format('Y-m-d H:i:s') }}</td>
+                                  <td>
+                                    <div style="font-weight:600;">{{ $activity->user->name ?? 'Unknown' }}</div>
+                                    <div class="h-muted" style="font-size:11px;">{{ $activity->user->email ?? '-' }}</div>
+                                  </td>
+                                  <td><span class="h-pill teal">{{ strtoupper((string) $activity->method) }}</span></td>
+                                  <td class="h-muted" style="font-size:11px;">{{ $activity->path }}</td>
+                                  <td class="h-muted" style="font-size:11px;">{{ $activity->route_name ?: '-' }}</td>
+                                  <td>{{ (int) data_get($activity->meta, 'status', 0) ?: '-' }}</td>
+                                </tr>
+                              @empty
+                                <tr>
+                                  <td colspan="6" class="h-muted">No user activity entries yet.</td>
+                                </tr>
+                              @endforelse
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="h-card-soft mb-3">
+                      <div class="head">
                         <div style="font-family:var(--fd);font-size:14px;font-weight:700;">Database Structure Snapshot</div>
                       </div>
                       <div class="body">
@@ -832,6 +1045,220 @@
 </div>
 @endsection
 
+@section('modals')
+  @if($canManageSettings && $hasSpatiePermissions)
+    <div class="h-modal-overlay" id="role-create-modal">
+      <div class="h-modal">
+        <div class="h-modal-head">
+          <div class="h-modal-title">Create Role</div>
+          <button class="h-modal-close">×</button>
+        </div>
+        <div class="h-modal-body">
+          <form method="POST" action="{{ route('settings.roles.store') }}" data-spa>
+            @csrf
+            <div class="h-form-group">
+              <label class="h-label" style="display:block;">Role Name</label>
+              <input type="text" name="name" class="form-control" placeholder="e.g. super-admin" required>
+            </div>
+            <div class="h-form-group">
+              <label class="h-label" style="display:block;">Permissions</label>
+              <div class="h-perm-grid">
+                @foreach($permissionOptions as $permissionName)
+                  <label class="h-perm-item">
+                    <input type="checkbox" name="permissions[]" value="{{ $permissionName }}">
+                    <span>{{ $permissionName }}</span>
+                  </label>
+                @endforeach
+              </div>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+              <button type="submit" class="btn btn-primary btn-sm" data-busy-text="Creating...">
+                <i class="fa-solid fa-check me-2"></i>
+                Create Role
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="h-modal-overlay" id="role-edit-modal">
+      <div class="h-modal">
+        <div class="h-modal-head">
+          <div class="h-modal-title">Edit Role</div>
+          <button class="h-modal-close">×</button>
+        </div>
+        <div class="h-modal-body">
+          <form method="POST" action="{{ route('settings.roles.update', ['role' => 1]) }}" id="role-edit-form" data-action-template="{{ route('settings.roles.update', ['role' => '__ID__']) }}" data-spa>
+            @csrf
+            @method('PUT')
+            <div class="h-form-group">
+              <label class="h-label" style="display:block;">Role Name</label>
+              <input type="text" name="name" id="role-edit-name" class="form-control" required>
+            </div>
+            <div class="h-form-group">
+              <label class="h-label" style="display:block;">Permissions</label>
+              <div class="h-perm-grid" id="role-edit-permissions">
+                @foreach($permissionOptions as $permissionName)
+                  <label class="h-perm-item">
+                    <input type="checkbox" name="permissions[]" value="{{ $permissionName }}">
+                    <span>{{ $permissionName }}</span>
+                  </label>
+                @endforeach
+              </div>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+              <button type="submit" class="btn btn-primary btn-sm" data-busy-text="Saving...">
+                <i class="fa-solid fa-floppy-disk me-2"></i>
+                Save Role
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  @endif
+
+  @if($canManageUsers)
+    <div class="h-modal-overlay" id="user-create-modal">
+      <div class="h-modal">
+        <div class="h-modal-head">
+          <div class="h-modal-title">Create User</div>
+          <button class="h-modal-close">×</button>
+        </div>
+        <div class="h-modal-body">
+          <form method="POST" action="{{ route('settings.users.store') }}" data-spa>
+            @csrf
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Full Name</label>
+                <input type="text" name="name" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Email</label>
+                <input type="email" name="email" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Password</label>
+                <input type="password" name="password" class="form-control" minlength="8" required>
+              </div>
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Role</label>
+                <select name="role" class="form-select" required>
+                  @foreach($roleNames as $roleName)
+                    <option value="{{ $roleName }}">{{ strtoupper($roleName) }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Telegram Chat ID</label>
+                <input type="text" name="telegram_chat_id" class="form-control" placeholder="optional">
+              </div>
+              <div class="col-md-6 d-flex gap-3 align-items-end flex-wrap">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="receive_in_app_notifications" value="1" id="new_user_in_app" checked>
+                  <label class="form-check-label" for="new_user_in_app">In-app</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="receive_telegram_notifications" value="1" id="new_user_tg">
+                  <label class="form-check-label" for="new_user_tg">Telegram</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="browser_notifications_enabled" value="1" id="new_user_browser">
+                  <label class="form-check-label" for="new_user_browser">Browser</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="h-label" style="display:block;">Direct Permissions</label>
+                <select name="permissions[]" class="form-select" multiple data-permission-select data-placeholder="Choose permissions...">
+                  @foreach($permissionOptions as $permissionName)
+                    <option value="{{ $permissionName }}">{{ $permissionName }}</option>
+                  @endforeach
+                </select>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+              <button type="submit" class="btn btn-primary btn-sm" data-busy-text="Creating...">
+                <i class="fa-solid fa-user-plus me-2"></i>
+                Create User
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="h-modal-overlay" id="user-edit-modal">
+      <div class="h-modal">
+        <div class="h-modal-head">
+          <div class="h-modal-title">Edit User</div>
+          <button class="h-modal-close">×</button>
+        </div>
+        <div class="h-modal-body">
+          <form method="POST" action="{{ route('settings.users.update', ['user' => 1]) }}" id="user-edit-form" data-action-template="{{ route('settings.users.update', ['user' => '__ID__']) }}" data-spa>
+            @csrf
+            @method('PUT')
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Full Name</label>
+                <input type="text" name="name" id="user-edit-name" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Email</label>
+                <input type="email" name="email" id="user-edit-email" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Password (leave blank to keep)</label>
+                <input type="password" name="password" id="user-edit-password" class="form-control" minlength="8">
+              </div>
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Role</label>
+                <select name="role" id="user-edit-role" class="form-select" required>
+                  @foreach($roleNames as $roleName)
+                    <option value="{{ $roleName }}">{{ strtoupper($roleName) }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="h-label" style="display:block;">Telegram Chat ID</label>
+                <input type="text" name="telegram_chat_id" id="user-edit-chat" class="form-control">
+              </div>
+              <div class="col-md-6 d-flex gap-3 align-items-end flex-wrap">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="receive_in_app_notifications" value="1" id="user-edit-inapp">
+                  <label class="form-check-label" for="user-edit-inapp">In-app</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="receive_telegram_notifications" value="1" id="user-edit-tg">
+                  <label class="form-check-label" for="user-edit-tg">Telegram</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="browser_notifications_enabled" value="1" id="user-edit-browser">
+                  <label class="form-check-label" for="user-edit-browser">Browser</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="h-label" style="display:block;">Direct Permissions</label>
+                <select name="permissions[]" id="user-edit-permissions" class="form-select" multiple data-permission-select data-placeholder="Choose permissions...">
+                  @foreach($permissionOptions as $permissionName)
+                    <option value="{{ $permissionName }}">{{ $permissionName }}</option>
+                  @endforeach
+                </select>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+              <button type="submit" class="btn btn-primary btn-sm" data-busy-text="Saving...">
+                <i class="fa-solid fa-floppy-disk me-2"></i>
+                Save User
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  @endif
+@endsection
+
 @section('scripts')
 <script>
   (function () {
@@ -880,12 +1307,13 @@
         if ($select.hasClass('select2-hidden-accessible')) return;
 
         const placeholder = $select.data('placeholder') || 'Select permissions';
+        const $parent = $select.closest('.h-modal, .h-tab-panel, .h-card-soft').first();
         $select.select2({
           width: '100%',
           closeOnSelect: false,
           placeholder,
           dropdownCssClass: 'h-s2-dropdown',
-          dropdownParent: $select.closest('.h-tab-panel'),
+          dropdownParent: $parent.length ? $parent : window.jQuery(document.body),
         });
       });
     }
@@ -966,10 +1394,139 @@
       }
     }
 
+    function activateTabById(container, tabId) {
+      if (!container || !tabId) return;
+      const button = container.querySelector('[data-tab-btn="' + tabId + '"]');
+      if (button) {
+        button.click();
+      }
+    }
+
+    function activateTabsFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const topTab = params.get('tab') || '';
+      const opsTab = params.get('ops_tab') || '';
+
+      const mainTabs = document.getElementById('settings-main-tabs');
+      const opsTabs = document.getElementById('settings-ops-tabs');
+
+      if (topTab) {
+        activateTabById(mainTabs, topTab);
+      }
+
+      if (topTab === 'settings-ops' && opsTab) {
+        setTimeout(() => activateTabById(opsTabs, opsTab), 60);
+      }
+    }
+
+    function bindRoleModal() {
+      const editForm = document.getElementById('role-edit-form');
+      if (!editForm) return;
+
+      const template = editForm.getAttribute('data-action-template') || '';
+      const roleNameInput = document.getElementById('role-edit-name');
+      const permissionBoxes = Array.from(editForm.querySelectorAll('input[name="permissions[]"]'));
+
+      document.querySelectorAll('[data-role-edit-open]').forEach((button) => {
+        button.addEventListener('click', () => {
+          let role;
+          try {
+            role = JSON.parse(button.getAttribute('data-role') || '{}');
+          } catch (error) {
+            role = {};
+          }
+
+          const roleId = String(role.id || '').trim();
+          const roleName = String(role.name || '').trim();
+          const rolePermissions = Array.isArray(role.permissions) ? role.permissions.map((item) => String(item)) : [];
+
+          if (template && roleId) {
+            editForm.setAttribute('action', template.replace('__ID__', roleId));
+          }
+
+          if (roleNameInput) {
+            roleNameInput.value = roleName;
+          }
+
+          permissionBoxes.forEach((checkbox) => {
+            checkbox.checked = rolePermissions.includes(String(checkbox.value));
+          });
+
+          if (window.HModal) {
+            window.HModal.open('role-edit-modal');
+          }
+        });
+      });
+    }
+
+    function bindUserModal() {
+      const editForm = document.getElementById('user-edit-form');
+      if (!editForm) return;
+
+      const actionTemplate = editForm.getAttribute('data-action-template') || '';
+      const nameField = document.getElementById('user-edit-name');
+      const emailField = document.getElementById('user-edit-email');
+      const passwordField = document.getElementById('user-edit-password');
+      const roleField = document.getElementById('user-edit-role');
+      const chatField = document.getElementById('user-edit-chat');
+      const inAppField = document.getElementById('user-edit-inapp');
+      const tgField = document.getElementById('user-edit-tg');
+      const browserField = document.getElementById('user-edit-browser');
+      const permsSelect = document.getElementById('user-edit-permissions');
+
+      document.querySelectorAll('[data-user-edit-open]').forEach((button) => {
+        button.addEventListener('click', () => {
+          let user;
+          try {
+            user = JSON.parse(button.getAttribute('data-user') || '{}');
+          } catch (error) {
+            user = {};
+          }
+
+          const userId = String(user.id || '').trim();
+          if (actionTemplate && userId) {
+            editForm.setAttribute('action', actionTemplate.replace('__ID__', userId));
+          }
+
+          if (nameField) nameField.value = String(user.name || '');
+          if (emailField) emailField.value = String(user.email || '');
+          if (passwordField) passwordField.value = '';
+          if (roleField) roleField.value = String(user.role || '');
+          if (chatField) chatField.value = String(user.telegram_chat_id || '');
+          if (inAppField) inAppField.checked = Boolean(user.receive_in_app_notifications);
+          if (tgField) tgField.checked = Boolean(user.receive_telegram_notifications);
+          if (browserField) browserField.checked = Boolean(user.browser_notifications_enabled);
+
+          if (permsSelect) {
+            const selectedPermissions = Array.isArray(user.permissions)
+              ? user.permissions.map((item) => String(item))
+              : [];
+
+            Array.from(permsSelect.options).forEach((option) => {
+              option.selected = selectedPermissions.includes(String(option.value));
+            });
+
+            if (window.jQuery && window.jQuery(permsSelect).hasClass('select2-hidden-accessible')) {
+              window.jQuery(permsSelect).trigger('change');
+            }
+          }
+
+          if (window.HModal) {
+            window.HModal.open('user-edit-modal');
+          }
+        });
+      });
+    }
+
     if (audience) {
       audience.addEventListener('change', syncAudienceFields);
       syncAudienceFields();
     }
+
+    ensurePermissionSelects(document);
+    bindRoleModal();
+    bindUserModal();
+    activateTabsFromQuery();
 
     const onTabsChanged = function (event) {
       const detail = event.detail || {};

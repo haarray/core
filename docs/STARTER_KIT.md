@@ -8,14 +8,11 @@ Load in this order inside your main layout:
 
 1. `bootstrap.css`
 2. `font-awesome.css`
-3. `public/css/haarray.css`
-4. `public/css/haarray.starter.css`
-5. `public/css/haarray.bootstrap-bridge.css`
-6. jQuery
-7. `bootstrap.bundle.js`
-8. `public/js/haarray.js`
-9. `public/js/haarray.plugins.js`
-10. DataTables CSS/JS (if using server-side tables)
+3. `public/css/haarray.app.css`
+4. jQuery
+5. `bootstrap.bundle.js`
+6. `public/js/haarray.app.js`
+7. DataTables CSS/JS (if using server-side tables)
 
 `#h-spa-content` must wrap your content region for partial page swaps.
 
@@ -95,7 +92,7 @@ Use for large tabular datasets with search/order/pagination from backend.
 <table
   data-h-datatable
   data-endpoint="{{ route('ui.datatables.users') }}"
-  data-page-length="8">
+  data-page-length="10">
   <thead>
     <tr>
       <th data-col="id">ID</th>
@@ -199,7 +196,7 @@ document.addEventListener('hspa:error', (event) => {
 
 ## 7. UI utility layer
 
-`haarray.starter.css` provides reusable building blocks:
+`haarray.app.css` is the served bundle (includes starter + bridge styles) and provides reusable building blocks:
 
 - Layout: `.h-container`, `.h-grid`, `.h-stack`, `.h-row`
 - Surfaces: `.h-card-soft`, `.h-note`, `.h-pill`
@@ -212,7 +209,31 @@ document.addEventListener('hspa:error', (event) => {
 - Use server-side validation as source of truth
 - Add feature tests for each componentized form flow
 - Avoid inline scripts when reusable module hooks are enough
-- Define project-specific tokens on top of `haarray.css` variables
+- Define project-specific tokens on top of source variables in `haarray.css`
 - Restrict `.env` UI access to trusted users only (route: `/settings`)
 - Keep Telegram and ML threshold keys under source-controlled `.env.example` for consistent environments
 - Use `HAARRAY_ALLOW_SHELL_UI=false` in production unless absolutely required
+
+## 9. RBAC modal workflows
+
+- Role CRUD endpoints:
+  - `settings.roles.store`
+  - `settings.roles.update`
+  - `settings.roles.delete`
+- User CRUD endpoints:
+  - `settings.users.store`
+  - `settings.users.update`
+  - `settings.users.delete`
+- Role editing uses checkbox permission matrix in modal forms.
+- User editing supports role assignment, direct permissions, and notification channels.
+
+## 10. Diagnostics enhancements
+
+- Nested diagnostics tabs (`Overview`, `ML Lab`, `Data & Logs`) are isolated with scoped tab containers.
+- DB Browser adds phpMyAdmin-style read-only preview (table selector + first 50 rows).
+- User activity feed is recorded by middleware (`TrackUserActivity`) and shown in diagnostics.
+- Use diagnostics action `Fix Storage Permissions` to run:
+
+```bash
+chmod -R 0777 storage bootstrap/cache
+```

@@ -123,6 +123,27 @@ input,select,textarea { font-family:var(--fb); }
   padding:2px 7px; border-radius:20px;
 }
 .h-nav-badge.teal { background:var(--teal); }
+.h-nav-sub {
+  margin: 0 8px 8px 8px;
+  padding: 2px 0 4px 20px;
+  border-left: 1px dashed var(--bd);
+}
+.h-nav-sub-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: var(--t3);
+  font-size: 12px;
+  text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.h-nav-sub-item:hover { background: var(--bg3); color: var(--t1); }
+.h-nav-sub-item.active {
+  background: rgba(245,166,35,.10);
+  color: var(--gold);
+}
 
 /* ── SIDEBAR BOTTOM ── */
 .h-sidebar-spacer { flex:1; }

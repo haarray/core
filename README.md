@@ -16,7 +16,8 @@ Laravel starter kit for Haarray products with progressive SPA behavior, reusable
 - Dedicated sidebar docs + settings pages
 - UI-based `.env` settings editor for whitelisted keys
 - Optional PWA install flow (manifest + service worker + install prompt)
-- Diagnostics tab with Git/DB/log/browser error visibility
+- Modal-based RBAC management (create/edit/delete roles + users)
+- Diagnostics tabs with Git/DB browser/log/browser errors/user activity visibility
 
 ## Tech profile
 
@@ -25,7 +26,7 @@ Laravel starter kit for Haarray products with progressive SPA behavior, reusable
 - jQuery (small runtime)
 - Bootstrap 5 + Font Awesome 6 (CDN, open source)
 - DataTables (CDN) + `yajra/laravel-datatables-oracle`
-- Custom CSS design system (`haarray.css` + `haarray.starter.css` + `haarray.bootstrap-bridge.css`)
+- Custom CSS design system merged to `public/css/haarray.app.css`
 - Vite available for future asset pipeline expansion
 
 ## Quick start
@@ -47,12 +48,9 @@ haarray-core/
 ├── app/
 ├── public/
 │   ├── css/
-│   │   ├── haarray.css
-│   │   ├── haarray.starter.css
-│   │   └── haarray.bootstrap-bridge.css
+│   │   └── haarray.app.css
 │   ├── js/
-│   │   ├── haarray.js
-│   │   └── haarray.plugins.js
+│   │   └── haarray.app.js
 │   └── icons/icons.svg
 ├── app/Http/Controllers/SettingsController.php
 ├── resources/views/
@@ -72,15 +70,20 @@ haarray-core/
 
 ## Core frontend modules
 
-`public/js/haarray.js`
+Runtime source files:
+
+- `public/js/haarray.js`
+- `public/js/haarray.plugins.js`
+
+Served bundle:
+
+- `public/js/haarray.app.js`
 
 - `HTheme`: dark/light mode state
 - `HToast`: notifications
 - `HModal`: modal controls
 - `HApi`: AJAX/form helper
 - `HSPA`: partial navigation + lifecycle events
-
-`public/js/haarray.plugins.js`
 
 - `HConfirm`: confirmation flow for links/forms
 - `HSelect`: searchable single/multi select
@@ -145,11 +148,16 @@ php -S 127.0.0.1:8000 server.php
 ### XAMPP/shared hosting (project root web path)
 
 - Root `.htaccess` rewrites traffic into `/public` automatically.
+- Both project URLs are supported:
+  - `http://localhost/harray-core`
+  - `http://localhost/haaray-core` (compatibility alias)
 - Keep writable folders ready:
 
 ```bash
-chmod -R 775 storage bootstrap/cache
+chmod -R 0777 storage bootstrap/cache
 ```
+
+From Diagnostics UI, run `Fix Storage Permissions` if Blade cache writes fail.
 
 ## Documentation
 

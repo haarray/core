@@ -183,8 +183,14 @@
     setup(container) {
       if (!container || container.dataset.hTabsReady === '1') return;
 
-      const buttons = Array.from(container.querySelectorAll('[data-tab-btn]'));
-      const panels = Array.from(container.querySelectorAll('[data-tab-panel]'));
+      const buttons = Array.from(container.querySelectorAll('[data-tab-btn]')).filter((button) => {
+        const owner = button.closest('[data-ui-tabs]');
+        return owner === container;
+      });
+      const panels = Array.from(container.querySelectorAll('[data-tab-panel]')).filter((panel) => {
+        const owner = panel.closest('[data-ui-tabs]');
+        return owner === container;
+      });
       if (!buttons.length || !panels.length) return;
 
       const fallback = buttons[0].dataset.tabBtn;
