@@ -15,7 +15,7 @@
   <div class="doc-head">
     <div>
       <div class="doc-title">Users</div>
-      <div class="doc-sub">Server-side DataTable list with one reusable create/edit modal, module access radios, import/export and confirm delete.</div>
+      <div class="doc-sub">Server-side DataTable with focused modals: profile, notification channels, and role/permission access.</div>
     </div>
     @if($canManageUsers)
       <span class="h-pill gold">Manage Users</span>
@@ -27,8 +27,8 @@
   <div class="h-card-soft mb-3">
     <div class="head h-split">
       <div>
-        <div style="font-family:var(--fd);font-size:16px;font-weight:700;">User Directory DataTable</div>
-        <div class="h-muted" style="font-size:13px;">Yajra server-side table with Edit and Delete actions.</div>
+        <div style="font-family:var(--fd);font-size:16px;font-weight:700;">User Directory</div>
+        <div class="h-muted" style="font-size:13px;">Actions: Edit profile, manage notifications, manage role/access, delete.</div>
       </div>
       @if($canManageUsers)
         <div class="d-flex gap-2 flex-wrap justify-content-end">
@@ -67,7 +67,7 @@
               <th data-col="role">Role</th>
               <th data-col="channels">Channels</th>
               <th data-col="created_at">Joined</th>
-              <th data-col="actions" class="h-col-actions" data-orderable="false" data-searchable="false">Action</th>
+              <th data-col="actions" class="h-col-actions" data-orderable="false" data-searchable="false">Actions</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -81,17 +81,24 @@
 @section('modals')
   @if($canManageUsers)
     <div class="h-modal-overlay" id="settings-users-form-modal">
-      <div class="h-modal" style="max-width:900px;">
+      <div class="h-modal" style="max-width:640px;">
         <div class="h-modal-head">
           <div class="h-modal-title" id="h-user-form-title">Create User</div>
           <button class="h-modal-close">×</button>
         </div>
         <div class="h-modal-body">
-          <form method="POST" action="{{ route('settings.users.store') }}" id="h-user-form" data-spa data-store-action="{{ route('settings.users.store') }}" data-update-template="{{ route('settings.users.update', ['user' => '__ID__']) }}">
+          <form
+            method="POST"
+            action="{{ route('settings.users.store') }}"
+            id="h-user-form"
+            data-spa
+            data-store-action="{{ route('settings.users.store') }}"
+            data-update-template="{{ route('settings.users.profile', ['user' => '__ID__']) }}"
+          >
             @csrf
             <span id="h-user-method-holder"></span>
 
-            <div class="row g-2">
+            <div class="row g-3">
               <div class="col-md-6">
                 <label class="h-label" style="display:block;">Name</label>
                 <input type="text" name="name" id="h-user-name" class="form-control" required>
@@ -100,25 +107,48 @@
                 <label class="h-label" style="display:block;">Email</label>
                 <input type="email" name="email" id="h-user-email" class="form-control" required>
               </div>
-              <div class="col-md-6">
+              <div class="col-md-12">
                 <label class="h-label" style="display:block;">Password</label>
                 <input type="password" name="password" id="h-user-password" class="form-control" minlength="8" required>
+                <div class="h-muted mt-1" style="font-size:11px;" id="h-user-password-hint">Required for new users.</div>
               </div>
-              <div class="col-md-6">
+            </div>
+
+            <div class="h-note mt-3">Role/access and notification channels are managed in dedicated modals from the Actions column.</div>
+
+            <div class="d-flex justify-content-end mt-3">
+              <button type="submit" class="btn btn-primary" id="h-user-submit-btn" data-busy-text="Saving...">
+                <i class="fa-solid fa-floppy-disk me-2"></i>
+                Save User
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="h-modal-overlay" id="settings-users-access-modal">
+      <div class="h-modal" style="max-width:1040px;">
+        <div class="h-modal-head">
+          <div class="h-modal-title" id="h-user-access-title">Role & Permissions</div>
+          <button class="h-modal-close">×</button>
+        </div>
+        <div class="h-modal-body">
+          <form method="POST" action="#" id="h-user-access-form" data-spa data-access-template="{{ route('settings.users.access', ['user' => '__ID__']) }}">
+            @csrf
+
+            <div class="row g-3">
+              <div class="col-md-4">
                 <label class="h-label" style="display:block;">Role</label>
-                <select name="role" id="h-user-role" class="form-select" data-h-select required>
+                <select name="role" id="h-access-role" class="form-select" data-h-select required>
                   @foreach($roles as $roleName)
                     <option value="{{ $roleName }}">{{ strtoupper($roleName) }}</option>
                   @endforeach
                 </select>
               </div>
-              <div class="col-md-6">
-                <label class="h-label" style="display:block;">Telegram Chat ID</label>
-                <input type="text" name="telegram_chat_id" id="h-user-tg" class="form-control" placeholder="optional">
-              </div>
-              <div class="col-md-6">
+              <div class="col-md-8">
                 <label class="h-label" style="display:block;">Direct Permissions</label>
-                <select name="permissions[]" id="h-user-permissions" class="form-select" data-h-select multiple>
+                <select name="permissions[]" id="h-access-permissions" class="form-select" data-h-select multiple>
                   @foreach($permissionOptions as $permissionName)
                     <option value="{{ $permissionName }}">{{ $permissionName }}</option>
                   @endforeach
@@ -128,45 +158,13 @@
 
             <div class="h-card-soft mt-3">
               <div class="head">
-                <div style="font-family:var(--fd);font-size:15px;font-weight:700;">Notification Channels (On / Off)</div>
-                <div class="h-muted" style="font-size:12px;">Toggle default user channels with radios.</div>
-              </div>
-              <div class="body">
-                <div class="h-user-channel-grid">
-                  <div>
-                    <label class="h-label" style="display:block;margin-bottom:6px;">In-app Notifications</label>
-                    <div class="h-radio-inline">
-                      <label class="h-radio-pill"><input type="radio" name="receive_in_app_notifications" value="1" checked><span>On</span></label>
-                      <label class="h-radio-pill"><input type="radio" name="receive_in_app_notifications" value="0"><span>Off</span></label>
-                    </div>
-                  </div>
-                  <div>
-                    <label class="h-label" style="display:block;margin-bottom:6px;">Telegram Notifications</label>
-                    <div class="h-radio-inline">
-                      <label class="h-radio-pill"><input type="radio" name="receive_telegram_notifications" value="1"><span>On</span></label>
-                      <label class="h-radio-pill"><input type="radio" name="receive_telegram_notifications" value="0" checked><span>Off</span></label>
-                    </div>
-                  </div>
-                  <div>
-                    <label class="h-label" style="display:block;margin-bottom:6px;">Browser Notifications</label>
-                    <div class="h-radio-inline">
-                      <label class="h-radio-pill"><input type="radio" name="browser_notifications_enabled" value="1"><span>On</span></label>
-                      <label class="h-radio-pill"><input type="radio" name="browser_notifications_enabled" value="0" checked><span>Off</span></label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="h-card-soft mt-3">
-              <div class="head">
-                <div style="font-family:var(--fd);font-size:15px;font-weight:700;">User-Level Module Access</div>
-                <div class="h-muted" style="font-size:12px;">Override module route access for this specific user.</div>
+                <div style="font-family:var(--fd);font-size:15px;font-weight:700;">Module Access Matrix</div>
+                <div class="h-muted" style="font-size:12px;">Set access level for each module.</div>
               </div>
               <div class="body">
                 <div class="h-user-access-grid">
                   @foreach($accessModules as $moduleKey => $module)
-                    <div class="h-user-access-item" data-user-module-key="{{ $moduleKey }}">
+                    <div class="h-user-access-item" data-access-module-key="{{ $moduleKey }}">
                       <div class="h-user-access-copy">
                         <div style="font-weight:700;">{{ $module['label'] }}</div>
                         <div class="h-muted" style="font-size:11px;"><code>{{ $module['view_permission'] }}</code> / <code>{{ $module['manage_permission'] }}</code></div>
@@ -183,20 +181,61 @@
             </div>
 
             <div class="d-flex justify-content-end mt-3">
-              <button type="submit" class="btn btn-primary" id="h-user-submit-btn" data-busy-text="Saving...">
-                <i class="fa-solid fa-floppy-disk me-2"></i>
-                Save User
+              <button type="submit" class="btn btn-primary" data-busy-text="Saving...">
+                <i class="fa-solid fa-user-shield me-2"></i>
+                Save Role & Access
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
 
-          <form method="POST" action="#" id="h-user-delete-form" data-spa data-confirm="true" data-confirm-title="Delete user?" data-confirm-text="This user will be removed permanently." style="display:none;margin-top:10px;">
+    <div class="h-modal-overlay" id="settings-users-notify-modal">
+      <div class="h-modal" style="max-width:640px;">
+        <div class="h-modal-head">
+          <div class="h-modal-title" id="h-user-notify-title">Notification Channels</div>
+          <button class="h-modal-close">×</button>
+        </div>
+        <div class="h-modal-body">
+          <form method="POST" action="#" id="h-user-notify-form" data-spa data-notify-template="{{ route('settings.users.notifications', ['user' => '__ID__']) }}">
             @csrf
-            @method('DELETE')
-            <button type="submit" class="btn btn-outline-danger" id="h-user-delete-btn">
-              <i class="fa-solid fa-trash me-2"></i>
-              Delete User
-            </button>
+
+            <div class="mb-3">
+              <label class="h-label" style="display:block;">Telegram Chat ID</label>
+              <input type="text" name="telegram_chat_id" id="h-notify-telegram" class="form-control" placeholder="optional">
+            </div>
+
+            <div class="h-user-channel-grid">
+              <div>
+                <label class="h-label" style="display:block;margin-bottom:6px;">In-app Notifications</label>
+                <div class="h-radio-inline">
+                  <label class="h-radio-pill"><input type="radio" name="receive_in_app_notifications" value="1"><span>On</span></label>
+                  <label class="h-radio-pill"><input type="radio" name="receive_in_app_notifications" value="0"><span>Off</span></label>
+                </div>
+              </div>
+              <div>
+                <label class="h-label" style="display:block;margin-bottom:6px;">Telegram Notifications</label>
+                <div class="h-radio-inline">
+                  <label class="h-radio-pill"><input type="radio" name="receive_telegram_notifications" value="1"><span>On</span></label>
+                  <label class="h-radio-pill"><input type="radio" name="receive_telegram_notifications" value="0"><span>Off</span></label>
+                </div>
+              </div>
+              <div>
+                <label class="h-label" style="display:block;margin-bottom:6px;">Browser Notifications</label>
+                <div class="h-radio-inline">
+                  <label class="h-radio-pill"><input type="radio" name="browser_notifications_enabled" value="1"><span>On</span></label>
+                  <label class="h-radio-pill"><input type="radio" name="browser_notifications_enabled" value="0"><span>Off</span></label>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-end mt-3">
+              <button type="submit" class="btn btn-primary" data-busy-text="Saving...">
+                <i class="fa-solid fa-bell me-2"></i>
+                Save Notification Channels
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -236,34 +275,50 @@
   if (!canManageUsers) return;
 
   const users = @json($userPayload);
-  const currentUserId = Number(@json((int) auth()->id()));
 
   const userForm = document.getElementById('h-user-form');
   const userFormTitle = document.getElementById('h-user-form-title');
   const userMethodHolder = document.getElementById('h-user-method-holder');
   const userSubmitBtn = document.getElementById('h-user-submit-btn');
-  const userDeleteForm = document.getElementById('h-user-delete-form');
+  const userPasswordHint = document.getElementById('h-user-password-hint');
 
   const userName = document.getElementById('h-user-name');
   const userEmail = document.getElementById('h-user-email');
   const userPassword = document.getElementById('h-user-password');
-  const userRole = document.getElementById('h-user-role');
-  const userTg = document.getElementById('h-user-tg');
-  const userPermissions = document.getElementById('h-user-permissions');
 
-  if (!userForm || !userName || !userEmail || !userPassword || !userRole || !userTg || !userPermissions) {
+  const accessForm = document.getElementById('h-user-access-form');
+  const accessTitle = document.getElementById('h-user-access-title');
+  const accessRole = document.getElementById('h-access-role');
+  const accessPermissions = document.getElementById('h-access-permissions');
+
+  const notifyForm = document.getElementById('h-user-notify-form');
+  const notifyTitle = document.getElementById('h-user-notify-title');
+  const notifyTelegram = document.getElementById('h-notify-telegram');
+
+  if (!userForm || !userName || !userEmail || !userPassword || !accessForm || !accessRole || !accessPermissions || !notifyForm || !notifyTelegram) {
     return;
   }
 
-  const setRadio = (name, enabled) => {
-    document.querySelectorAll('input[type="radio"][name="' + name + '"]').forEach((radio) => {
-      radio.checked = String(radio.value) === (enabled ? '1' : '0');
+  const openModal = (id) => {
+    if (window.HModal) {
+      window.HModal.open(id);
+      return;
+    }
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.add('show');
+  };
+
+  const setPermissions = (selected = []) => {
+    const selectedSet = new Set((selected || []).map(String));
+    Array.from(accessPermissions.options).forEach((option) => {
+      option.selected = selectedSet.has(String(option.value));
     });
+    accessPermissions.dispatchEvent(new Event('change', { bubbles: true }));
   };
 
   const setModuleAccess = (payload = {}) => {
-    document.querySelectorAll('[data-user-module-key]').forEach((row) => {
-      const key = row.getAttribute('data-user-module-key') || '';
+    document.querySelectorAll('[data-access-module-key]').forEach((row) => {
+      const key = row.getAttribute('data-access-module-key') || '';
       const value = String(payload[key] || 'none');
       row.querySelectorAll('input[type="radio"]').forEach((radio) => {
         radio.checked = String(radio.value) === value;
@@ -271,21 +326,10 @@
     });
   };
 
-  const setPermissions = (selected = []) => {
-    const selectedSet = new Set((selected || []).map(String));
-    Array.from(userPermissions.options).forEach((option) => {
-      option.selected = selectedSet.has(String(option.value));
+  const setNotifyRadio = (name, enabled) => {
+    notifyForm.querySelectorAll('input[type="radio"][name="' + name + '"]').forEach((radio) => {
+      radio.checked = String(radio.value) === (enabled ? '1' : '0');
     });
-    userPermissions.dispatchEvent(new Event('change', { bubbles: true }));
-  };
-
-  const openModal = () => {
-    if (window.HModal) {
-      window.HModal.open('settings-users-form-modal');
-      return;
-    }
-    const modal = document.getElementById('settings-users-form-modal');
-    if (modal) modal.classList.add('show');
   };
 
   const openCreate = () => {
@@ -299,22 +343,9 @@
     userPassword.value = '';
     userPassword.required = true;
     userPassword.placeholder = '';
-    userRole.selectedIndex = 0;
-    userRole.dispatchEvent(new Event('change', { bubbles: true }));
-    userTg.value = '';
+    userPasswordHint.textContent = 'Required for new users.';
 
-    setPermissions([]);
-    setRadio('receive_in_app_notifications', true);
-    setRadio('receive_telegram_notifications', false);
-    setRadio('browser_notifications_enabled', false);
-    setModuleAccess({});
-
-    if (userDeleteForm) {
-      userDeleteForm.style.display = 'none';
-      userDeleteForm.setAttribute('action', '#');
-    }
-
-    openModal();
+    openModal('settings-users-form-modal');
   };
 
   const openEdit = (userId) => {
@@ -332,29 +363,39 @@
     userPassword.value = '';
     userPassword.required = false;
     userPassword.placeholder = 'Leave blank to keep current password';
-    if (user.role) userRole.value = String(user.role);
-    userRole.dispatchEvent(new Event('change', { bubbles: true }));
-    userTg.value = String(user.telegram_chat_id || '');
+    userPasswordHint.textContent = 'Optional for edit.';
 
+    openModal('settings-users-form-modal');
+  };
+
+  const openAccess = (userId) => {
+    const user = users[String(userId)] || users[userId];
+    if (!user) return;
+
+    accessForm.setAttribute('action', String(accessForm.dataset.accessTemplate || '').replace('__ID__', String(user.id)));
+    accessTitle.textContent = 'Role & Permissions: ' + String(user.name || 'User');
+
+    accessRole.value = String(user.role || 'user');
+    accessRole.dispatchEvent(new Event('change', { bubbles: true }));
     setPermissions(Array.isArray(user.permissions) ? user.permissions : []);
-    setRadio('receive_in_app_notifications', Boolean(user.receive_in_app_notifications));
-    setRadio('receive_telegram_notifications', Boolean(user.receive_telegram_notifications));
-    setRadio('browser_notifications_enabled', Boolean(user.browser_notifications_enabled));
     setModuleAccess(user.module_access || {});
 
-    if (userDeleteForm) {
-      const canDelete = Number(user.id) !== currentUserId;
-      if (canDelete) {
-        const deleteAction = '{{ route('settings.users.delete', ['user' => '__ID__']) }}'.replace('__ID__', String(user.id));
-        userDeleteForm.setAttribute('action', deleteAction);
-        userDeleteForm.style.display = 'inline-flex';
-      } else {
-        userDeleteForm.style.display = 'none';
-        userDeleteForm.setAttribute('action', '#');
-      }
-    }
+    openModal('settings-users-access-modal');
+  };
 
-    openModal();
+  const openNotify = (userId) => {
+    const user = users[String(userId)] || users[userId];
+    if (!user) return;
+
+    notifyForm.setAttribute('action', String(notifyForm.dataset.notifyTemplate || '').replace('__ID__', String(user.id)));
+    notifyTitle.textContent = 'Notification Channels: ' + String(user.name || 'User');
+
+    notifyTelegram.value = String(user.telegram_chat_id || '');
+    setNotifyRadio('receive_in_app_notifications', Boolean(user.receive_in_app_notifications));
+    setNotifyRadio('receive_telegram_notifications', Boolean(user.receive_telegram_notifications));
+    setNotifyRadio('browser_notifications_enabled', Boolean(user.browser_notifications_enabled));
+
+    openModal('settings-users-notify-modal');
   };
 
   const createButton = document.getElementById('h-user-create-open');
@@ -362,15 +403,58 @@
 
   document.addEventListener('click', (event) => {
     const editBtn = event.target.closest('[data-user-edit-id]');
-    if (!editBtn) return;
-    event.preventDefault();
-    const userId = Number(editBtn.getAttribute('data-user-edit-id') || 0);
-    if (!userId) return;
-    openEdit(userId);
+    if (editBtn) {
+      event.preventDefault();
+      const userId = Number(editBtn.getAttribute('data-user-edit-id') || 0);
+      if (userId) openEdit(userId);
+      return;
+    }
+
+    const accessBtn = event.target.closest('[data-user-access-id]');
+    if (accessBtn) {
+      event.preventDefault();
+      const userId = Number(accessBtn.getAttribute('data-user-access-id') || 0);
+      if (userId) openAccess(userId);
+      return;
+    }
+
+    const notifyBtn = event.target.closest('[data-user-notify-id]');
+    if (notifyBtn) {
+      event.preventDefault();
+      const userId = Number(notifyBtn.getAttribute('data-user-notify-id') || 0);
+      if (userId) openNotify(userId);
+    }
   });
 
   const query = new URLSearchParams(window.location.search);
+  const accessUserId = Number(query.get('access_user') || 0);
+  const notifyUserId = Number(query.get('notify_user') || 0);
   const editUserId = Number(query.get('edit_user') || 0);
+
+  if (accessUserId > 0) {
+    setTimeout(() => {
+      openAccess(accessUserId);
+      if (window.history && typeof window.history.replaceState === 'function') {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('access_user');
+        window.history.replaceState({}, '', url.toString());
+      }
+    }, 80);
+    return;
+  }
+
+  if (notifyUserId > 0) {
+    setTimeout(() => {
+      openNotify(notifyUserId);
+      if (window.history && typeof window.history.replaceState === 'function') {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('notify_user');
+        window.history.replaceState({}, '', url.toString());
+      }
+    }, 80);
+    return;
+  }
+
   if (editUserId > 0) {
     setTimeout(() => {
       openEdit(editUserId);

@@ -100,19 +100,25 @@ class UiOptionsController extends Controller
                 $editButton = '<button type="button" class="btn btn-outline-secondary btn-sm h-action-icon" data-user-edit-id="' . (int) $user->id . '" title="Edit user" aria-label="Edit user">'
                     . '<i class="fa-solid fa-pen-to-square"></i>'
                     . '</button>';
+                $accessButton = '<button type="button" class="btn btn-outline-secondary btn-sm h-action-icon" data-user-access-id="' . (int) $user->id . '" title="Role and permission access" aria-label="Role and permission access">'
+                    . '<i class="fa-solid fa-user-shield"></i>'
+                    . '</button>';
+                $notifyButton = '<button type="button" class="btn btn-outline-secondary btn-sm h-action-icon" data-user-notify-id="' . (int) $user->id . '" title="Notification channels" aria-label="Notification channels">'
+                    . '<i class="fa-solid fa-bell"></i>'
+                    . '</button>';
                 if ((int) $request->user()->id === (int) $user->id) {
-                    return $editButton;
+                    return '<span class="h-action-group">' . $editButton . $accessButton . $notifyButton . '</span>';
                 }
 
                 $deleteAction = route('settings.users.delete', $user);
                 $csrf = csrf_token();
-                $deleteForm = '<form method="POST" action="' . e($deleteAction) . '" class="d-inline-block ms-1" data-spa data-confirm="true" data-confirm-title="Delete user?" data-confirm-text="This user account will be removed permanently.">'
+                $deleteForm = '<form method="POST" action="' . e($deleteAction) . '" class="d-inline-block" data-spa data-confirm="true" data-confirm-title="Delete user?" data-confirm-text="This user account will be removed permanently.">'
                     . '<input type="hidden" name="_token" value="' . e($csrf) . '">'
                     . '<input type="hidden" name="_method" value="DELETE">'
                     . '<button type="submit" class="btn btn-outline-danger btn-sm h-action-icon" title="Delete user" aria-label="Delete user"><i class="fa-solid fa-trash"></i></button>'
                     . '</form>';
 
-                return $editButton . $deleteForm;
+                return '<span class="h-action-group">' . $editButton . $accessButton . $notifyButton . $deleteForm . '</span>';
             })
             ->rawColumns(['actions'])
             ->toJson();

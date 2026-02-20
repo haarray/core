@@ -69,7 +69,7 @@ Route::middleware('auth')->group(function () {
         ->name('settings.users.access');
 
     Route::get('/settings/users/{user}/access', function ($user) {
-        return redirect()->route('settings.users.index', ['edit_user' => (string) $user]);
+        return redirect()->route('settings.users.index', ['access_user' => (string) $user]);
     })
         ->middleware('permission:view users');
 
@@ -92,6 +92,14 @@ Route::middleware('auth')->group(function () {
     Route::put('/settings/users/{user}', [SettingsController::class, 'updateUser'])
         ->middleware('permission:manage users')
         ->name('settings.users.update');
+
+    Route::put('/settings/users/{user}/profile', [SettingsController::class, 'updateUserProfile'])
+        ->middleware('permission:manage users')
+        ->name('settings.users.profile');
+
+    Route::post('/settings/users/{user}/notifications', [SettingsController::class, 'updateUserNotifications'])
+        ->middleware('permission:manage users')
+        ->name('settings.users.notifications');
 
     Route::delete('/settings/users/{user}', [SettingsController::class, 'deleteUser'])
         ->middleware('permission:manage users')

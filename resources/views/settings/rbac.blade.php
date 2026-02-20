@@ -15,7 +15,7 @@
   <div class="doc-head">
     <div>
       <div class="doc-title">Roles & Permissions</div>
-      <div class="doc-sub">Professional route/link/action access matrix with role CRUD and delegation.</div>
+      <div class="doc-sub">Manage role definitions and permission matrix with a cleaner flow.</div>
     </div>
     <span class="h-pill gold">RBAC</span>
   </div>
@@ -29,9 +29,13 @@
     <div class="h-card-soft mb-3">
       <div class="head h-split">
         <div>
-          <div style="font-family:var(--fd);font-size:16px;font-weight:700;">Role Directory DataTable</div>
-          <div class="h-muted" style="font-size:13px;">Server-side styled table for roles and quick edit navigation.</div>
+          <div style="font-family:var(--fd);font-size:16px;font-weight:700;">Role Directory</div>
+          <div class="h-muted" style="font-size:13px;">Use modal-based create/edit for role definitions.</div>
         </div>
+        <button type="button" class="btn btn-primary btn-sm" id="h-role-create-open">
+          <i class="fa-solid fa-plus me-2"></i>
+          Create Role
+        </button>
       </div>
       <div class="body">
         <div class="table-responsive">
@@ -51,7 +55,7 @@
                 <th data-col="permissions_count">Permissions</th>
                 <th data-col="users_count">Users</th>
                 <th data-col="is_protected">Protected</th>
-                <th data-col="actions" class="h-col-actions" data-orderable="false" data-searchable="false">Action</th>
+                <th data-col="actions" class="h-col-actions" data-orderable="false" data-searchable="false">Actions</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -60,120 +64,47 @@
       </div>
     </div>
 
-    <div class="h-grid-main h-rbac-grid mb-3" id="role-editor">
-      <div class="h-card-soft mb-3">
-        <div class="head">
-          <div style="font-family:var(--fd);font-size:16px;font-weight:700;">Create Role</div>
-        </div>
-        <div class="body">
-          <form method="POST" action="{{ route('settings.roles.store') }}" data-spa>
-            @csrf
-            <div class="mb-2">
-              <label class="h-label" style="display:block;">Role Name</label>
-              <input type="text" name="name" class="form-control" placeholder="e.g. auditor" required>
-            </div>
-
-            <div class="mb-2">
-              <label class="h-label" style="display:block;">Permissions</label>
-              <select name="permissions[]" class="form-select" data-h-select multiple>
-                @foreach($permissionOptions as $permissionName)
-                  <option value="{{ $permissionName }}">{{ $permissionName }}</option>
-                @endforeach
-              </select>
-            </div>
-
-            <div class="d-flex justify-content-end mt-3">
-              <button type="submit" class="btn btn-primary" data-busy-text="Creating...">
-                <i class="fa-solid fa-plus me-2"></i>
-                Create Role
-              </button>
-            </div>
-          </form>
-        </div>
+    <div class="h-card-soft mb-3">
+      <div class="head">
+        <div style="font-family:var(--fd);font-size:16px;font-weight:700;">Delete Roles</div>
+        <div class="h-muted" style="font-size:13px;">Protected roles and roles with assigned users cannot be deleted.</div>
       </div>
-
-      <div>
-        @if($editRole)
-          <div class="h-card-soft mb-3" id="role-editor-card">
-            <div class="head">
-              <div style="font-family:var(--fd);font-size:16px;font-weight:700;">Edit Role: {{ strtoupper($editRole->name) }}</div>
-            </div>
-            <div class="body">
-              <form method="POST" action="{{ route('settings.roles.update', $editRole) }}" data-spa>
-                @csrf
-                @method('PUT')
-
-                <div class="mb-2">
-                  <label class="h-label" style="display:block;">Role Name</label>
-                  <input type="text" name="name" class="form-control" value="{{ old('name', $editRole->name) }}" required>
-                </div>
-
-                @php $selectedPermissions = $editRole->permissions->pluck('name')->values()->all(); @endphp
-                <div class="mb-2">
-                  <label class="h-label" style="display:block;">Permissions</label>
-                  <select name="permissions[]" class="form-select" data-h-select multiple>
-                    @foreach($permissionOptions as $permissionName)
-                      <option value="{{ $permissionName }}" @selected(in_array($permissionName, $selectedPermissions, true))>{{ $permissionName }}</option>
-                    @endforeach
-                  </select>
-                </div>
-
-                <div class="d-flex justify-content-end mt-3">
-                  <button type="submit" class="btn btn-primary" data-busy-text="Updating...">
-                    <i class="fa-solid fa-floppy-disk me-2"></i>
-                    Update Role
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        @else
-          <div class="h-note mb-3">Select a role from table and click <strong>Edit</strong> to load editor here.</div>
-        @endif
-
-        <div class="h-card-soft mb-3">
-          <div class="head">
-            <div style="font-family:var(--fd);font-size:16px;font-weight:700;">Delete Roles</div>
-            <div class="h-muted" style="font-size:13px;">Protected roles and roles with assigned users cannot be deleted.</div>
-          </div>
-          <div class="body">
-            <div class="table-responsive">
-              <table class="table table-sm align-middle">
-                <thead>
-                  <tr>
-                    <th>Role</th>
-                    <th>Users</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @forelse($roleCatalog as $roleRow)
-                    @php
-                      $roleName = (string) $roleRow['name'];
-                      $isProtected = in_array($roleName, $protectedRoleNames, true);
-                    @endphp
-                    <tr>
-                      <td>{{ strtoupper($roleName) }}</td>
-                      <td>{{ (int) $roleRow['users_count'] }}</td>
-                      <td>
-                        <form method="POST" action="{{ route('settings.roles.delete', $roleRow['id']) }}" data-spa data-confirm="true" data-confirm-title="Delete role?" data-confirm-text="Role will be removed permanently if no user is assigned.">
-                          @csrf
-                          @method('DELETE')
-                          <button type="submit" class="btn btn-outline-danger btn-sm h-action-icon" title="Delete role" @disabled($isProtected || ((int) $roleRow['users_count']) > 0)>
-                            <i class="fa-solid fa-trash"></i>
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
-                  @empty
-                    <tr>
-                      <td colspan="3" class="h-muted">No roles available.</td>
-                    </tr>
-                  @endforelse
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div class="body">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>Role</th>
+                <th>Users</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @forelse($roleCatalog as $roleRow)
+                @php
+                  $roleName = (string) $roleRow['name'];
+                  $isProtected = in_array($roleName, $protectedRoleNames, true);
+                @endphp
+                <tr>
+                  <td>{{ strtoupper($roleName) }}</td>
+                  <td>{{ (int) $roleRow['users_count'] }}</td>
+                  <td>
+                    <form method="POST" action="{{ route('settings.roles.delete', $roleRow['id']) }}" data-spa data-confirm="true" data-confirm-title="Delete role?" data-confirm-text="Role will be removed permanently if no user is assigned.">
+                      @csrf
+                      @method('DELETE')
+                      <button type="submit" class="btn btn-outline-danger btn-sm h-action-icon" title="Delete role" @disabled($isProtected || ((int) $roleRow['users_count']) > 0)>
+                        <i class="fa-solid fa-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              @empty
+                <tr>
+                  <td colspan="3" class="h-muted">No roles available.</td>
+                </tr>
+              @endforelse
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -280,38 +211,130 @@
 </div>
 @endsection
 
+@section('modals')
+  @if($hasSpatiePermissions)
+    <div class="h-modal-overlay" id="settings-role-form-modal">
+      <div class="h-modal" style="max-width:760px;">
+        <div class="h-modal-head">
+          <div class="h-modal-title" id="h-role-form-title">Create Role</div>
+          <button class="h-modal-close">×</button>
+        </div>
+        <div class="h-modal-body">
+          <form
+            method="POST"
+            action="{{ route('settings.roles.store') }}"
+            id="h-role-form"
+            data-spa
+            data-store-action="{{ route('settings.roles.store') }}"
+            data-update-template="{{ route('settings.roles.update', ['role' => '__ID__']) }}"
+          >
+            @csrf
+            <span id="h-role-method-holder"></span>
+
+            <div class="mb-3">
+              <label class="h-label" style="display:block;">Role Name</label>
+              <input type="text" name="name" id="h-role-name" class="form-control" placeholder="e.g. auditor" required>
+            </div>
+
+            <div class="mb-2">
+              <label class="h-label" style="display:block;">Permissions</label>
+              <select name="permissions[]" id="h-role-permissions" class="form-select" data-h-select multiple>
+                @foreach($permissionOptions as $permissionName)
+                  <option value="{{ $permissionName }}">{{ $permissionName }}</option>
+                @endforeach
+              </select>
+            </div>
+
+            <div class="d-flex justify-content-end mt-3">
+              <button type="submit" class="btn btn-primary" id="h-role-submit-btn" data-busy-text="Saving...">
+                <i class="fa-solid fa-floppy-disk me-2"></i>
+                Save Role
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  @endif
+@endsection
+
 @section('scripts')
 <script>
 (function () {
-  document.addEventListener('click', function (event) {
+  const hasSpatiePermissions = @json($hasSpatiePermissions);
+  if (!hasSpatiePermissions) return;
+
+  const roleCatalog = @json($roleCatalog);
+  const roleMap = new Map((roleCatalog || []).map((row) => [String(row.id), row]));
+
+  const form = document.getElementById('h-role-form');
+  const methodHolder = document.getElementById('h-role-method-holder');
+  const title = document.getElementById('h-role-form-title');
+  const nameInput = document.getElementById('h-role-name');
+  const permissionsSelect = document.getElementById('h-role-permissions');
+  const submitBtn = document.getElementById('h-role-submit-btn');
+
+  if (!form || !methodHolder || !title || !nameInput || !permissionsSelect || !submitBtn) {
+    return;
+  }
+
+  const openModal = () => {
+    if (window.HModal) {
+      window.HModal.open('settings-role-form-modal');
+      return;
+    }
+    const modal = document.getElementById('settings-role-form-modal');
+    if (modal) modal.classList.add('show');
+  };
+
+  const setPermissions = (selected = []) => {
+    const selectedSet = new Set((selected || []).map(String));
+    Array.from(permissionsSelect.options).forEach((option) => {
+      option.selected = selectedSet.has(String(option.value));
+    });
+    permissionsSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  const openCreate = () => {
+    form.setAttribute('action', form.dataset.storeAction);
+    methodHolder.innerHTML = '';
+    title.textContent = 'Create Role';
+    submitBtn.innerHTML = '<i class="fa-solid fa-plus me-2"></i>Create Role';
+
+    nameInput.value = '';
+    setPermissions([]);
+
+    openModal();
+  };
+
+  const openEdit = (roleId) => {
+    const row = roleMap.get(String(roleId));
+    if (!row) return;
+
+    const action = String(form.dataset.updateTemplate || '').replace('__ID__', String(roleId));
+    form.setAttribute('action', action);
+    methodHolder.innerHTML = '<input type="hidden" name="_method" value="PUT">';
+    title.textContent = 'Edit Role: ' + String(row.name || 'Role').toUpperCase();
+    submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk me-2"></i>Update Role';
+
+    nameInput.value = String(row.name || '');
+    setPermissions(Array.isArray(row.permissions) ? row.permissions : []);
+
+    openModal();
+  };
+
+  const createBtn = document.getElementById('h-role-create-open');
+  if (createBtn) createBtn.addEventListener('click', openCreate);
+
+  document.addEventListener('click', (event) => {
     const trigger = event.target.closest('[data-role-edit-id]');
     if (!trigger) return;
 
     event.preventDefault();
     const roleId = Number(trigger.getAttribute('data-role-edit-id') || 0);
     if (!roleId) return;
-
-    const url = new URL('{{ route('settings.rbac') }}', window.location.origin);
-    url.searchParams.set('role', String(roleId));
-    url.hash = 'role-editor-card';
-
-    if (window.HSPA) {
-      window.HSPA.navigate(url.pathname + url.search + url.hash, true);
-      return;
-    }
-
-    window.location.href = url.toString();
+    openEdit(roleId);
   });
-
-  const params = new URLSearchParams(window.location.search);
-  if (!params.get('role')) return;
-
-  const target = document.getElementById('role-editor-card') || document.getElementById('role-editor');
-  if (!target) return;
-
-  setTimeout(() => {
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 120);
 })();
 </script>
 @endsection

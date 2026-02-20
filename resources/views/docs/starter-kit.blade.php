@@ -331,8 +331,8 @@ return DataTables::eloquent(User::query())
       <section class="doc-block">
         <h3>Rich Editor (HEditor)</h3>
         <p>
-          Use <code>&lt;x-editor&gt;</code> for a lightweight CKEditor-style block with a richer toolbar:
-          headings, lists, alignment, links, images, tables, code blocks, undo/redo, and hidden-field syncing.
+          <code>&lt;x-editor&gt;</code> now uses the open-source <code>Quill</code> engine (with Haarray styling),
+          giving a stable toolbar for headings, lists, links, images, code blocks, and reliable hidden-field syncing.
         </p>
 
         <pre><code>&lt;x-editor

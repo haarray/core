@@ -783,6 +783,73 @@
   pointer-events: none;
 }
 
+.h-editor-quill {
+  border: 1px solid var(--hl-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--hl-bg);
+}
+
+.h-editor-quill .ql-toolbar.ql-snow {
+  border: 0;
+  border-bottom: 1px solid var(--hl-border);
+  background: var(--hl-bg-soft);
+  padding: 8px;
+}
+
+.h-editor-quill .ql-container.ql-snow {
+  border: 0;
+  min-height: 220px;
+  background: var(--bg0);
+  color: var(--hl-text);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+[data-theme='light'] .h-editor-quill .ql-container.ql-snow {
+  background: #fff;
+}
+
+.h-editor-quill .ql-editor {
+  min-height: 220px;
+}
+
+.h-editor-quill .ql-snow .ql-stroke {
+  stroke: var(--hl-text-soft);
+}
+
+.h-editor-quill .ql-snow .ql-fill {
+  fill: var(--hl-text-soft);
+}
+
+.h-editor-quill .ql-snow .ql-picker {
+  color: var(--hl-text-soft);
+}
+
+.h-editor-quill .ql-snow .ql-picker-options {
+  background: var(--hl-bg);
+  border-color: var(--hl-border-strong);
+  z-index: 14;
+}
+
+.h-editor-quill .ql-snow .ql-tooltip {
+  background: var(--hl-bg);
+  border-color: var(--hl-border-strong);
+  color: var(--hl-text);
+  z-index: 3600;
+}
+
+.h-editor-quill .ql-toolbar .ql-picker-label,
+.h-editor-quill .ql-toolbar .ql-picker-item {
+  cursor: pointer;
+}
+
+.h-editor-quill .ql-snow .ql-tooltip input[type='text'] {
+  background: var(--bg0);
+  border: 1px solid var(--hl-border);
+  color: var(--hl-text);
+}
+
 .h-editor-modal .h-editor-modal-shell {
   max-width: 840px;
 }
@@ -1222,6 +1289,13 @@
   gap: 12px;
 }
 
+.hl-settings .h-user-channel-grid > div {
+  border: 1px solid var(--hl-border);
+  border-radius: 10px;
+  background: var(--hl-bg-soft);
+  padding: 10px;
+}
+
 .hl-settings .h-user-access-grid {
   display: grid;
   gap: 10px;
@@ -1234,6 +1308,12 @@
   background: rgba(255, 255, 255, 0.01);
   display: grid;
   gap: 8px;
+}
+
+.hl-settings #settings-users-access-modal .h-user-access-grid {
+  max-height: 48vh;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .hl-settings .h-user-access-copy code {
@@ -1532,6 +1612,40 @@
   padding: 0 !important;
 }
 
+.h-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.h-action-group form {
+  margin: 0;
+}
+
+.hl-settings .h-modal {
+  border-radius: 16px;
+  border-color: var(--hl-border-strong);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)) padding-box,
+    var(--hl-bg);
+}
+
+.hl-settings .h-modal-head {
+  background: color-mix(in srgb, var(--hl-bg-soft) 86%, transparent);
+  border-bottom-color: var(--hl-border);
+}
+
+.hl-settings .h-modal-body {
+  max-height: min(72vh, 760px);
+  overflow: auto;
+}
+
+.hl-settings .h-modal .h-note {
+  border-color: var(--hl-border);
+  background: var(--hl-bg-soft);
+}
+
 table.h-table-sticky-actions {
   overflow: visible;
 }
@@ -1541,7 +1655,7 @@ table.h-table-sticky-actions td.h-col-actions {
   position: sticky;
   right: 0;
   white-space: nowrap;
-  min-width: 120px;
+  min-width: 170px;
 }
 
 table.h-table-sticky-actions th.h-col-actions {

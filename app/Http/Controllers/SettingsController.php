@@ -627,13 +627,27 @@ class SettingsController extends Controller
 
         $roleName = $validated['role'];
 
-        $user->update([
+        $payload = [
             'role' => $roleName,
-            'receive_in_app_notifications' => (bool) $request->boolean('receive_in_app_notifications', false),
-            'receive_telegram_notifications' => (bool) $request->boolean('receive_telegram_notifications', false),
-            'browser_notifications_enabled' => (bool) $request->boolean('browser_notifications_enabled', false),
-            'telegram_chat_id' => $validated['telegram_chat_id'] ?? null,
-        ]);
+        ];
+
+        if ($request->has('receive_in_app_notifications')) {
+            $payload['receive_in_app_notifications'] = (bool) $request->boolean('receive_in_app_notifications');
+        }
+
+        if ($request->has('receive_telegram_notifications')) {
+            $payload['receive_telegram_notifications'] = (bool) $request->boolean('receive_telegram_notifications');
+        }
+
+        if ($request->has('browser_notifications_enabled')) {
+            $payload['browser_notifications_enabled'] = (bool) $request->boolean('browser_notifications_enabled');
+        }
+
+        if ($request->has('telegram_chat_id')) {
+            $payload['telegram_chat_id'] = trim((string) ($validated['telegram_chat_id'] ?? '')) ?: null;
+        }
+
+        $user->update($payload);
 
         if ($this->permissionTablesReady()) {
             $user->syncRoles([$roleName]);
@@ -828,7 +842,7 @@ class SettingsController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
-            'role' => ['required', 'string', Rule::in($availableRoles)],
+            'role' => ['nullable', 'string', Rule::in($availableRoles)],
             'telegram_chat_id' => ['nullable', 'string', 'max:255'],
             'receive_in_app_notifications' => ['nullable', 'boolean'],
             'receive_telegram_notifications' => ['nullable', 'boolean'],
@@ -839,11 +853,18 @@ class SettingsController extends Controller
             'module_access.*' => ['nullable', 'string', Rule::in(['none', 'view', 'manage'])],
         ]);
 
+        $roleName = trim((string) ($validated['role'] ?? ''));
+        if ($roleName === '' || !in_array($roleName, $availableRoles, true)) {
+            $roleName = in_array('user', $availableRoles, true)
+                ? 'user'
+                : (string) ($availableRoles[0] ?? 'user');
+        }
+
         $user = User::create([
             'name' => trim((string) $validated['name']),
             'email' => strtolower(trim((string) $validated['email'])),
             'password' => (string) $validated['password'],
-            'role' => (string) $validated['role'],
+            'role' => $roleName,
             'telegram_chat_id' => $validated['telegram_chat_id'] ?? null,
             'receive_in_app_notifications' => (bool) $request->boolean('receive_in_app_notifications'),
             'receive_telegram_notifications' => (bool) $request->boolean('receive_telegram_notifications'),
@@ -851,7 +872,7 @@ class SettingsController extends Controller
         ]);
 
         if ($this->permissionTablesReady()) {
-            $user->syncRoles([(string) $validated['role']]);
+            $user->syncRoles([$roleName]);
             $modulePermissions = $this->moduleAccessPermissions((array) ($validated['module_access'] ?? []));
             $permissions = $this->normalizedPermissions(array_merge($validated['permissions'] ?? [], $modulePermissions), $availablePermissions);
             $user->syncPermissions($permissions);
@@ -871,7 +892,7 @@ class SettingsController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'string', 'min:8'],
-            'role' => ['required', 'string', Rule::in($availableRoles)],
+            'role' => ['nullable', 'string', Rule::in($availableRoles)],
             'telegram_chat_id' => ['nullable', 'string', 'max:255'],
             'receive_in_app_notifications' => ['nullable', 'boolean'],
             'receive_telegram_notifications' => ['nullable', 'boolean'],
@@ -882,10 +903,15 @@ class SettingsController extends Controller
             'module_access.*' => ['nullable', 'string', Rule::in(['none', 'view', 'manage'])],
         ]);
 
+        $roleName = trim((string) ($validated['role'] ?? ($user->role ?? '')));
+        if ($roleName === '' || !in_array($roleName, $availableRoles, true)) {
+            $roleName = trim((string) ($user->role ?: ($availableRoles[0] ?? 'user')));
+        }
+
         $payload = [
             'name' => trim((string) $validated['name']),
             'email' => strtolower(trim((string) $validated['email'])),
-            'role' => (string) $validated['role'],
+            'role' => $roleName,
             'telegram_chat_id' => $validated['telegram_chat_id'] ?? null,
             'receive_in_app_notifications' => (bool) $request->boolean('receive_in_app_notifications'),
             'receive_telegram_notifications' => (bool) $request->boolean('receive_telegram_notifications'),
@@ -899,14 +925,65 @@ class SettingsController extends Controller
         $user->update($payload);
 
         if ($this->permissionTablesReady()) {
-            $user->syncRoles([(string) $validated['role']]);
-            $modulePermissions = $this->moduleAccessPermissions((array) ($validated['module_access'] ?? []));
-            $permissions = $this->normalizedPermissions(array_merge($validated['permissions'] ?? [], $modulePermissions), $availablePermissions);
-            $user->syncPermissions($permissions);
+            if ($request->filled('role')) {
+                $user->syncRoles([$roleName]);
+            }
+
+            if ($request->has('permissions') || $request->has('module_access')) {
+                $modulePermissions = $this->moduleAccessPermissions((array) ($validated['module_access'] ?? []));
+                $permissions = $this->normalizedPermissions(array_merge($validated['permissions'] ?? [], $modulePermissions), $availablePermissions);
+                $user->syncPermissions($permissions);
+            }
+
             app(PermissionRegistrar::class)->forgetCachedPermissions();
         }
 
         return back()->with('success', "User {$user->name} updated successfully.");
+    }
+
+    public function updateUserProfile(Request $request, User $user): RedirectResponse
+    {
+        $this->assertCan($request, 'manage users', 'Only authorized users can update accounts.');
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'password' => ['nullable', 'string', 'min:8'],
+        ]);
+
+        $payload = [
+            'name' => trim((string) $validated['name']),
+            'email' => strtolower(trim((string) $validated['email'])),
+        ];
+
+        if (!empty($validated['password'])) {
+            $payload['password'] = (string) $validated['password'];
+        }
+
+        $user->update($payload);
+
+        return back()->with('success', "User {$user->name} profile updated successfully.");
+    }
+
+    public function updateUserNotifications(Request $request, User $user): RedirectResponse
+    {
+        $this->assertCan($request, 'manage users', 'Only authorized users can update notification settings.');
+
+        $validated = $request->validate([
+            'telegram_chat_id' => ['nullable', 'string', 'max:255'],
+            'receive_in_app_notifications' => ['nullable', 'boolean'],
+            'receive_telegram_notifications' => ['nullable', 'boolean'],
+            'browser_notifications_enabled' => ['nullable', 'boolean'],
+        ]);
+
+        $user->update([
+            'telegram_chat_id' => trim((string) ($validated['telegram_chat_id'] ?? '')) ?: null,
+            'receive_in_app_notifications' => (bool) $request->boolean('receive_in_app_notifications'),
+            'receive_telegram_notifications' => (bool) $request->boolean('receive_telegram_notifications'),
+            'browser_notifications_enabled' => (bool) $request->boolean('browser_notifications_enabled'),
+        ]);
+
+        return back()->with('success', "Notification channels updated for {$user->name}.");
     }
 
     public function deleteUser(Request $request, User $user): RedirectResponse

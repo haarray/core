@@ -1440,6 +1440,7 @@
 
     bindLinks() {
       $(document).on('click', 'a[data-spa]', (event) => {
+        if ($(event.currentTarget).is('[data-confirm="true"]')) return;
         if (!this.shouldHandleLink(event)) return;
 
         event.preventDefault();
@@ -1464,9 +1465,12 @@
 
     bindForms() {
       $(document).on('submit', 'form[data-spa]', (event) => {
-        event.preventDefault();
-
         const $form = $(event.currentTarget);
+        if ($form.is('[data-confirm="true"]') && !$form.is('[data-confirm-bypass="1"]')) {
+          return;
+        }
+
+        event.preventDefault();
         const fallbackUrl = window.location.href;
         const $submit = $form.find('button[type="submit"]').first();
         const originalText = $submit.text();

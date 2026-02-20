@@ -43,8 +43,10 @@
       });
 
       $(document).on('submit', 'form[data-confirm="true"]', (event) => {
+        const $form = $(event.currentTarget);
+        if ($form.is('[data-confirm-bypass="1"]')) return;
         event.preventDefault();
-        this._openFromForm($(event.currentTarget));
+        this._openFromForm($form);
       });
 
       this.$cancel.on('click', () => this.close());
@@ -179,7 +181,9 @@
     },
   };
 
-  $(document).on('submit', 'form[data-confirm="true"][data-confirm-bypass="1"]', function () {
+  $(document).on('submit', 'form[data-confirm="true"][data-confirm-bypass="1"]', function (event) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
     this.submit();
     return false;
   });
@@ -786,7 +790,13 @@
     init(root) {
       this._ensureDialog();
       const ctx = root && root.querySelectorAll ? root : document;
-      ctx.querySelectorAll(this.selector).forEach((el) => this.setup(el));
+      ctx.querySelectorAll(this.selector).forEach((el) => {
+        if (typeof window.Quill === 'function') {
+          this.setupQuill(el);
+          return;
+        }
+        this.setup(el);
+      });
     },
 
     setup(el) {
@@ -809,6 +819,87 @@
       this._bindEditorEvents(el, editorName);
       this._syncHiddenField(el, editorName);
       this._decorateCanvases(el);
+    },
+
+    setupQuill(el) {
+      if (!el || el.dataset.hEditorReady === '1') return;
+
+      el.dataset.hEditorReady = '1';
+      const editorName = el.dataset.editorName || el.getAttribute('name') || el.getAttribute('id') || '';
+      const placeholder = el.dataset.placeholder || 'Start typing...';
+      const initialHtml = String(el.innerHTML || '');
+
+      el.classList.add('h-editor-quill');
+      el.removeAttribute('contenteditable');
+      el.removeAttribute('spellcheck');
+      el.removeAttribute('data-placeholder');
+
+      const modules = {
+        toolbar: [
+          [{ header: [2, 3, 4, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          [{ align: [] }],
+          ['blockquote', 'code-block'],
+          ['link', 'image'],
+          ['clean'],
+        ],
+      };
+
+      const quill = new window.Quill(el, {
+        theme: 'snow',
+        placeholder,
+        modules,
+      });
+
+      quill.clipboard.dangerouslyPasteHTML(initialHtml);
+
+      const toolbar = quill.getModule('toolbar');
+      if (toolbar && typeof toolbar.addHandler === 'function') {
+        toolbar.addHandler('image', () => {
+          const range = quill.getSelection(true);
+          this._openToolModal('image').then((payload) => {
+            if (!payload || !payload.src) return;
+            if (!this._isSafeUrl(payload.src)) return;
+            const index = range && Number.isFinite(range.index) ? range.index : quill.getLength();
+            quill.insertEmbed(index, 'image', payload.src, 'user');
+            quill.setSelection(index + 1, 0, 'user');
+            this._syncHiddenFieldQuill(quill, editorName, el);
+          });
+        });
+      }
+
+      quill.on('text-change', () => {
+        this._syncHiddenFieldQuill(quill, editorName, el);
+      });
+
+      this._syncHiddenFieldQuill(quill, editorName, el);
+
+      const form = el.closest('form');
+      if (form && editorName) {
+        form.addEventListener('submit', () => {
+          this._syncHiddenFieldQuill(quill, editorName, el);
+        });
+      }
+    },
+
+    _syncHiddenFieldQuill(quill, editorName, editorEl) {
+      if (!quill || !editorName || !editorEl) return;
+
+      const form = editorEl.closest('form');
+      if (!form) return;
+
+      let hidden = form.querySelector('textarea[data-editor-hidden="' + editorName + '"]');
+      if (!hidden) {
+        hidden = document.createElement('textarea');
+        hidden.name = editorName;
+        hidden.setAttribute('data-editor-hidden', editorName);
+        hidden.style.display = 'none';
+        form.appendChild(hidden);
+      }
+
+      const html = String(quill.root.innerHTML || '').trim();
+      hidden.value = html === '<p><br></p>' ? '' : html;
     },
 
     _insertToolbar(editorEl) {
@@ -851,7 +942,7 @@
       toolbar.dataset.editorToolbar = editorEl.dataset.editorToolbarId;
 
       toolbar.addEventListener('mousedown', (event) => {
-        if (event.target.closest('[data-cmd],select[data-cmd]')) {
+        if (event.target.closest('button[data-cmd]')) {
           event.preventDefault();
         }
       });
