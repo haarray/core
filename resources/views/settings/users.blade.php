@@ -58,6 +58,7 @@
           data-length-menu="10,20,50,100"
           data-order-col="0"
           data-order-dir="desc"
+          data-empty-text="Empty"
         >
           <thead>
             <tr>

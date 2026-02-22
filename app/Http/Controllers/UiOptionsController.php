@@ -141,7 +141,7 @@ class UiOptionsController extends Controller
 
             $actions = '<span class="h-muted">View only</span>';
             if ($request->user() && $request->user()->can('manage settings')) {
-                $editButton = '<a href="' . e(route('settings.rbac', ['role' => (int) $role->id])) . '#role-editor" data-spa class="btn btn-outline-secondary btn-sm h-action-icon" title="Edit role" aria-label="Edit role"><i class="fa-solid fa-pen-to-square"></i></a>';
+                $editButton = '<a href="' . e(route('settings.rbac.edit', $role)) . '" data-spa class="btn btn-outline-secondary btn-sm h-action-icon" title="Edit role" aria-label="Edit role"><i class="fa-solid fa-pen-to-square"></i></a>';
 
                 $deleteDisabled = $isProtected || $assignedUsers > 0;
                 $deleteTitle = $deleteDisabled
@@ -281,6 +281,60 @@ class UiOptionsController extends Controller
         })->all();
 
         return response()->json(['items' => $items]);
+    }
+
+    public function fileManagerDelete(Request $request): JsonResponse
+    {
+        if (!$request->user() || !$request->user()->can('manage settings')) {
+            abort(403, 'You do not have permission to delete media files.');
+        }
+
+        $validated = $request->validate([
+            'path' => ['required', 'string', 'max:255'],
+        ]);
+
+        $relativePath = ltrim(str_replace('\\', '/', (string) $validated['path']), '/');
+        if (!str_starts_with($relativePath, 'uploads/')) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Only files inside uploads/ can be deleted.',
+            ], 422);
+        }
+
+        $absolutePath = public_path($relativePath);
+        $realPublic = realpath(public_path()) ?: public_path();
+        $realFile = realpath($absolutePath);
+        if ($realFile === false || !str_starts_with($realFile, $realPublic) || !File::exists($realFile)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Media file not found.',
+            ], 404);
+        }
+
+        File::delete($realFile);
+
+        $branding = AppSettings::uiBranding();
+        $updates = [];
+        if (ltrim((string) ($branding['logo_url'] ?? ''), '/') === $relativePath) {
+            $updates['ui.logo_url'] = '';
+        }
+        if (ltrim((string) ($branding['favicon_url'] ?? ''), '/') === $relativePath) {
+            $updates['ui.favicon_url'] = '';
+        }
+        if (ltrim((string) ($branding['app_icon_url'] ?? ''), '/') === $relativePath) {
+            $updates['ui.app_icon_url'] = '';
+        }
+        if (ltrim((string) AppSettings::resolveUiAsset(AppSettings::get('ui.notification_sound_url', '')), '/') === $relativePath) {
+            $updates['ui.notification_sound_url'] = '';
+        }
+        if (!empty($updates)) {
+            AppSettings::putMany($updates);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Media file deleted.',
+        ]);
     }
 
     public function fileManagerUpload(Request $request): JsonResponse
@@ -609,6 +663,8 @@ class UiOptionsController extends Controller
             resource_path('views/settings/index.blade.php'),
             resource_path('views/settings/users.blade.php'),
             resource_path('views/settings/rbac.blade.php'),
+            resource_path('views/settings/rbac-create.blade.php'),
+            resource_path('views/settings/rbac-edit.blade.php'),
             resource_path('views/docs/starter-kit.blade.php'),
         ];
 

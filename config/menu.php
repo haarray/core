@@ -25,7 +25,7 @@ return [
             'route' => 'settings.rbac',
             'params' => [],
             'permission' => 'manage settings',
-            'active_route' => 'settings.rbac',
+            'active_route' => 'settings.rbac*',
         ],
         [
             'label' => 'Activity',
@@ -62,15 +62,6 @@ return [
             'permission' => 'manage settings',
             'active_route' => 'settings.index',
             'match_query' => 'tab=settings-system',
-        ],
-        [
-            'label' => 'Diagnostics',
-            'icon' => 'fa-solid fa-stethoscope',
-            'route' => 'settings.index',
-            'params' => ['tab' => 'settings-diagnostics'],
-            'permission' => 'manage settings',
-            'active_route' => 'settings.index',
-            'match_query' => 'tab=settings-diagnostics',
         ],
     ],
 ];

@@ -45,6 +45,14 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:manage settings')
         ->name('settings.rbac');
 
+    Route::get('/settings/rbac/create', [SettingsController::class, 'rbacCreate'])
+        ->middleware('permission:manage settings')
+        ->name('settings.rbac.create');
+
+    Route::get('/settings/rbac/{role}/edit', [SettingsController::class, 'rbacEdit'])
+        ->middleware('permission:manage settings')
+        ->name('settings.rbac.edit');
+
     Route::post('/settings', [SettingsController::class, 'update'])
         ->middleware('permission:manage settings')
         ->name('settings.update');
@@ -60,14 +68,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/settings/security', [SettingsController::class, 'updateMySecurity'])
         ->middleware('permission:view settings')
         ->name('settings.security');
-
-    Route::post('/settings/notifications/rules', [SettingsController::class, 'upsertNotificationRule'])
-        ->middleware('permission:manage notifications')
-        ->name('settings.notifications.rules.upsert');
-
-    Route::delete('/settings/notifications/rules/{ruleId}', [SettingsController::class, 'deleteNotificationRule'])
-        ->middleware('permission:manage notifications')
-        ->name('settings.notifications.rules.delete');
 
     Route::post('/profile', [SettingsController::class, 'updateProfile'])
         ->name('profile.update');
@@ -129,14 +129,6 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:manage settings')
         ->name('settings.roles.delete');
 
-    Route::post('/settings/ops/action', [SettingsController::class, 'runOpsAction'])
-        ->middleware('permission:manage settings')
-        ->name('settings.ops.action');
-
-    Route::post('/settings/ml/probe', [SettingsController::class, 'runMlProbe'])
-        ->middleware('permission:manage settings')
-        ->name('settings.ml.probe');
-
     Route::get('/ui/options/leads', [UiOptionsController::class, 'leads'])
         ->middleware('permission:view users')
         ->name('ui.options.leads');
@@ -148,6 +140,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/ui/file-manager/upload', [UiOptionsController::class, 'fileManagerUpload'])
         ->middleware('permission:manage settings')
         ->name('ui.filemanager.upload');
+
+    Route::post('/ui/file-manager/delete', [UiOptionsController::class, 'fileManagerDelete'])
+        ->middleware('permission:manage settings')
+        ->name('ui.filemanager.delete');
 
     Route::get('/ui/search/global', [UiOptionsController::class, 'globalSearch'])
         ->name('ui.search.global');

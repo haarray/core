@@ -15,7 +15,7 @@ Laravel starter kit for Haarray products with progressive SPA behavior, reusable
 - Bootstrap + Font Awesome integration (open source)
 - Dedicated sidebar docs + Settings control center
 - Collapsible/expandable desktop sidebar + mobile hamburger sidebar
-- Settings tabs for app-level controls: App & Branding, Activity, Security, Notifications, System, Diagnostics
+- Settings tabs for app-level controls: App & Branding, Activity, Security, Notifications, System
 - Dedicated full pages for `Users` and `Access & RBAC` from sidebar
 - Built-in media/file manager endpoint for editor and branding uploads
 - Global media manager modal (image/audio) with upload and picker support
@@ -28,10 +28,9 @@ Laravel starter kit for Haarray products with progressive SPA behavior, reusable
 - Settings app-branding panel with DB-backed app name/logo/favicon/app icon/theme color
 - Profile modal from sidebar user menu (name/email/password/telegram/browser notify)
 - Activity tab with Yajra DataTable + export
-- Diagnostics tabs with DB browser/log/ML checks/user activity visibility
 - Collapsible sidebar settings group with query-aware tab links + dedicated Users/RBAC links
 - Notification tray actions: per-row mark-read + mark-all-read + optional custom audio
-- Notification automation rule builder (activity/CRUD actions -> targeted channels)
+- Global `App\\Support\\Notifier` helper for controller/job notification dispatch
 - Advanced health checker (DB/cache/storage/queue/RBAC/notifications)
 - Optional local hot reload polling (theme-safe, low bandwidth)
 
@@ -89,7 +88,9 @@ haarray-core/
 │   └── settings/
 │       ├── index.blade.php
 │       ├── users.blade.php
-│       └── rbac.blade.php
+│       ├── rbac.blade.php
+│       ├── rbac-create.blade.php
+│       └── rbac-edit.blade.php
 ├── docs/
 │   ├── SPA.md
 │   └── STARTER_KIT.md
@@ -207,7 +208,7 @@ chmod -R 0777 storage bootstrap/cache public/uploads
 chmod 0666 .env
 ```
 
-From Diagnostics UI, run `Fix Storage Permissions` if Blade cache writes fail.
+If Blade cache writes fail, run the chmod commands above again.
 
 ## Documentation
 
@@ -217,7 +218,7 @@ From Diagnostics UI, run `Fix Storage Permissions` if Blade cache writes fail.
 - SPA details: `docs/SPA.md`
 - Tutorials:
   - `docs/tutorials/CRUD_WORKFLOW.md`
-  - `docs/tutorials/NOTIFICATION_AUTOMATION.md`
+  - `docs/tutorials/NOTIFIER_HELPER.md`
   - `docs/tutorials/INTEGRATIONS_FACEBOOK_TELEGRAM.md`
 
 ## Philosophy

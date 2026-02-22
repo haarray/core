@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Services\TelegramNotificationService;
 use App\Models\User;
-use App\Notifications\SystemBroadcastNotification;
+use App\Support\Notifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -91,7 +90,7 @@ class NotificationController extends Controller
         ]);
     }
 
-    public function broadcast(Request $request, TelegramNotificationService $telegram): RedirectResponse
+    public function broadcast(Request $request, Notifier $notifier): RedirectResponse
     {
         $actor = $request->user();
         if (!$actor || !$actor->can('manage notifications')) {
@@ -159,34 +158,15 @@ class NotificationController extends Controller
             return back()->with('error', 'Run migrations first to enable in-app notifications.');
         }
 
-        $inAppCount = 0;
-        $telegramCount = 0;
-
-        foreach ($recipients as $recipient) {
-            if (in_array('in_app', $channels, true) && $recipient->receive_in_app_notifications) {
-                $recipient->notify(new SystemBroadcastNotification(
-                    title: $validated['title'],
-                    message: $validated['message'],
-                    level: $validated['level'],
-                    url: $validated['url'] ?? null,
-                ));
-                $inAppCount++;
-            }
-
-            if (in_array('telegram', $channels, true) && $recipient->receive_telegram_notifications && $recipient->telegram_chat_id) {
-                $sent = $telegram->sendMessage(
-                    $recipient->telegram_chat_id,
-                    "<b>{$validated['title']}</b>\n{$validated['message']}"
-                );
-                if ($sent) {
-                    $telegramCount++;
-                }
-            }
-        }
+        $summary = $notifier->toUsers($recipients, (string) $validated['title'], (string) $validated['message'], [
+            'level' => (string) $validated['level'],
+            'url' => (string) ($validated['url'] ?? ''),
+            'channels' => $channels,
+        ]);
 
         return back()->with(
             'success',
-            "Broadcast sent. In-app: {$inAppCount}, Telegram: {$telegramCount}."
+            'Broadcast sent. In-app: ' . (int) $summary['in_app'] . ', Telegram: ' . (int) $summary['telegram'] . '.'
         );
     }
 

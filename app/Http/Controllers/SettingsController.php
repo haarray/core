@@ -38,14 +38,10 @@ class SettingsController extends Controller
         $mediaLibrary = $this->brandingMediaLibrary();
         $notificationSoundUrl = AppSettings::resolveUiAsset(AppSettings::get('ui.notification_sound_url', ''));
         $searchRegistryJson = AppSettings::get('search.registry_json', '');
-        $automationRules = $this->notificationAutomationRules();
-        $automationModelOptions = $this->notificationAutomationModelOptions();
-        $automationRoleOptions = $this->availableRoleNames();
-        $healthReport = app(HealthCheckService::class)->report();
+        $roleOptions = $this->availableRoleNames();
 
         $fields = $this->fields();
         $values = $this->readEnvValues(array_keys($fields));
-        $opsUiEnabled = $this->opsUiEnabled($values);
 
         foreach ($fields as $key => $meta) {
             if (($values[$key] ?? '') === '' && array_key_exists('default', $meta)) {
@@ -55,34 +51,18 @@ class SettingsController extends Controller
 
         $canManageSettings = (bool) ($viewer && $viewer->can('manage settings'));
 
-        $opsSnapshot = [];
-        $dbBrowser = [];
-        if ($canManageSettings && $opsUiEnabled) {
-            $opsSnapshot = $this->buildOpsSnapshot($dbConnectionInfo['connection']);
-            $dbBrowser = $this->buildDbBrowser((string) request()->query('db_table', ''), $dbConnectionInfo['connection']);
-        }
-
         return view('settings.index', [
             'fields'      => $fields,
             'values'      => $values,
             'sections'    => $this->sections(),
             'envWritable' => $this->envWritable(),
             'canManageSettings' => $canManageSettings,
-            'opsUiEnabled' => $opsUiEnabled,
-            'opsSnapshot' => $opsSnapshot,
-            'dbBrowser' => $dbBrowser,
-            'opsOutput' => (string) session('ops_output', ''),
-            'mlDiagnostics' => $this->buildMlDiagnostics(),
-            'mlProbeResult' => session('ml_probe_result', []),
             'dbConnectionInfo' => $dbConnectionInfo,
             'uiBranding' => $uiBranding,
             'mediaLibrary' => $mediaLibrary,
             'notificationSoundUrl' => $notificationSoundUrl,
             'searchRegistryJson' => $searchRegistryJson,
-            'automationRules' => $automationRules,
-            'automationModelOptions' => $automationModelOptions,
-            'automationRoleOptions' => $automationRoleOptions,
-            'healthReport' => $healthReport,
+            'roleOptions' => $roleOptions,
         ]);
     }
 
@@ -180,12 +160,6 @@ class SettingsController extends Controller
             })->values();
         }
 
-        $editRoleId = (int) $request->query('role', 0);
-        $editRole = null;
-        if ($permissionTablesReady && $editRoleId > 0) {
-            $editRole = Role::query()->with('permissions')->find($editRoleId);
-        }
-
         return view('settings.rbac', [
             'hasSpatiePermissions' => $permissionTablesReady,
             'roles' => $roles,
@@ -197,7 +171,42 @@ class SettingsController extends Controller
             'roleExtraPermissionMap' => $roleExtraPermissionMap,
             'roleCatalog' => $roleCatalog,
             'protectedRoleNames' => $this->protectedRoleNames(),
-            'editRole' => $editRole,
+        ]);
+    }
+
+    public function rbacCreate(Request $request): View
+    {
+        $this->assertCan($request, 'manage settings', 'Only authorized admins can manage RBAC.');
+
+        $permissionTablesReady = $this->permissionTablesReady();
+        $permissionOptions = collect($this->availablePermissionNames());
+
+        return view('settings.rbac-create', [
+            'hasSpatiePermissions' => $permissionTablesReady,
+            'permissionOptions' => $permissionOptions,
+            'accessModules' => $this->accessModules(),
+            'protectedRoleNames' => $this->protectedRoleNames(),
+        ]);
+    }
+
+    public function rbacEdit(Request $request, Role $role): View|RedirectResponse
+    {
+        $this->assertCan($request, 'manage settings', 'Only authorized admins can manage RBAC.');
+
+        if (!$this->permissionTablesReady()) {
+            return redirect()->route('settings.rbac')->with('error', 'Spatie permission tables are not ready yet.');
+        }
+
+        $role->load('permissions');
+        $roleUserCounts = $this->roleUserCounts();
+
+        return view('settings.rbac-edit', [
+            'hasSpatiePermissions' => true,
+            'role' => $role,
+            'permissionOptions' => collect($this->availablePermissionNames()),
+            'accessModules' => $this->accessModules(),
+            'protectedRoleNames' => $this->protectedRoleNames(),
+            'assignedUsers' => (int) ($roleUserCounts[$role->id] ?? 0),
         ]);
     }
 
@@ -489,10 +498,6 @@ class SettingsController extends Controller
             'ui_favicon_url' => ['nullable', 'string', 'max:2048'],
             'ui_app_icon_url' => ['nullable', 'string', 'max:2048'],
             'ui_notification_sound_url' => ['nullable', 'string', 'max:2048'],
-            'ui_logo_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
-            'ui_favicon_file' => ['nullable', 'file', 'mimes:ico,png,webp,svg', 'max:2048'],
-            'ui_app_icon_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg,ico', 'max:4096'],
-            'ui_notification_sound_file' => ['nullable', 'file', 'mimes:mp3,wav,ogg,m4a,aac,flac', 'max:15360'],
             'search_registry_json' => ['nullable', 'string', 'max:30000'],
         ]);
 
@@ -501,22 +506,6 @@ class SettingsController extends Controller
         $appIconUrl = $this->normalizeUiAssetInput((string) ($validated['ui_app_icon_url'] ?? ''));
         $notificationSoundUrl = $this->normalizeUiAssetInput((string) ($validated['ui_notification_sound_url'] ?? ''));
         $searchRegistryJson = trim((string) ($validated['search_registry_json'] ?? ''));
-
-        if ($request->hasFile('ui_logo_file')) {
-            $logoUrl = $this->storeBrandAsset($request->file('ui_logo_file'), 'logo');
-        }
-
-        if ($request->hasFile('ui_favicon_file')) {
-            $faviconUrl = $this->storeBrandAsset($request->file('ui_favicon_file'), 'favicon');
-        }
-
-        if ($request->hasFile('ui_app_icon_file')) {
-            $appIconUrl = $this->storeBrandAsset($request->file('ui_app_icon_file'), 'app-icon');
-        }
-
-        if ($request->hasFile('ui_notification_sound_file')) {
-            $notificationSoundUrl = $this->storeBrandAsset($request->file('ui_notification_sound_file'), 'notification-sound');
-        }
 
         if ($searchRegistryJson !== '') {
             try {
@@ -549,11 +538,22 @@ class SettingsController extends Controller
         $this->assertCan($request, 'manage settings', 'Only authorized admins can remove branding assets.');
 
         $validated = $request->validate([
-            'asset_path' => ['required', 'string', 'max:255'],
+            'asset_path' => ['nullable', 'string', 'max:255'],
+            'asset_url' => ['nullable', 'string', 'max:2048'],
         ]);
 
-        $relativePath = ltrim(str_replace('\\', '/', (string) $validated['asset_path']), '/');
-        if (!str_starts_with($relativePath, 'uploads/branding/')) {
+        $relativePath = ltrim(str_replace('\\', '/', (string) ($validated['asset_path'] ?? '')), '/');
+        if ($relativePath === '') {
+            $assetUrl = trim((string) ($validated['asset_url'] ?? ''));
+            $parsedPath = trim((string) parse_url($assetUrl, PHP_URL_PATH));
+            $relativePath = ltrim($parsedPath, '/');
+        }
+
+        if ($relativePath === '') {
+            return back()->with('error', 'No media path was provided for delete action.');
+        }
+
+        if (!str_starts_with($relativePath, 'uploads/')) {
             return back()->with('error', 'Invalid branding asset path.');
         }
 
@@ -586,7 +586,7 @@ class SettingsController extends Controller
             AppSettings::putMany($updates);
         }
 
-        return back()->with('success', 'Branding media removed successfully.');
+        return back()->with('success', 'Media file removed successfully.');
     }
 
     public function updateUserAccess(Request $request, User $user): RedirectResponse
@@ -792,7 +792,9 @@ class SettingsController extends Controller
         $role->syncPermissions($permissions);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', "Role {$role->name} created successfully.");
+        return redirect()
+            ->route('settings.rbac.edit', $role)
+            ->with('success', "Role {$role->name} created successfully.");
     }
 
     public function updateRole(Request $request, Role $role): RedirectResponse
@@ -828,7 +830,9 @@ class SettingsController extends Controller
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', "Role {$role->name} updated successfully.");
+        return redirect()
+            ->route('settings.rbac.edit', $role)
+            ->with('success', "Role {$role->name} updated successfully.");
     }
 
     public function deleteRole(Request $request, Role $role): RedirectResponse
@@ -851,7 +855,7 @@ class SettingsController extends Controller
         $role->delete();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        return back()->with('success', 'Role deleted successfully.');
+        return redirect()->route('settings.rbac')->with('success', 'Role deleted successfully.');
     }
 
     public function storeUser(Request $request): RedirectResponse
@@ -1322,13 +1326,6 @@ class SettingsController extends Controller
                 'type'     => 'bool',
                 'required' => true,
                 'default'  => 'true',
-            ],
-            'HAARRAY_ALLOW_SHELL_UI' => [
-                'section'  => 'app',
-                'label'    => 'Enable DevOps UI (Git / DB / Logs)',
-                'type'     => 'bool',
-                'required' => true,
-                'default'  => 'false',
             ],
             'HAARRAY_HOT_RELOAD' => [
                 'section'  => 'app',
@@ -2269,13 +2266,13 @@ class SettingsController extends Controller
      */
     private function brandingMediaLibrary(int $limit = 60): array
     {
-        $directory = public_path('uploads/branding');
+        $directory = public_path('uploads');
         if (!File::isDirectory($directory)) {
             return [];
         }
 
-        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'svg', 'ico', 'gif'];
-        $files = collect(File::files($directory))
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'svg', 'ico', 'gif', 'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'];
+        $files = collect(File::allFiles($directory))
             ->filter(function ($file) use ($allowedExtensions) {
                 return in_array(strtolower((string) $file->getExtension()), $allowedExtensions, true);
             })
@@ -2284,11 +2281,17 @@ class SettingsController extends Controller
 
         return $files->map(function ($file) {
             $filename = (string) $file->getFilename();
-            $relative = 'uploads/branding/' . $filename;
+            $absolutePath = (string) $file->getPathname();
+            $relative = str_replace('\\', '/', ltrim(str_replace(public_path(), '', $absolutePath), '/'));
+            $extension = strtolower((string) $file->getExtension());
+            $type = in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'svg', 'ico', 'gif'], true) ? 'image' : 'audio';
+
             return [
                 'name' => $filename,
                 'path' => $relative,
                 'url' => url($relative),
+                'type' => $type,
+                'extension' => $extension,
                 'size_kb' => number_format(((int) $file->getSize()) / 1024, 1),
                 'modified_at' => date('Y-m-d H:i', (int) $file->getMTime()),
             ];

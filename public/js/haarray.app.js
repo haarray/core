@@ -861,6 +861,18 @@
         this._searchTimer = window.setTimeout(() => this.load(), 170);
       });
 
+      $(document).on('click', '#h-media-manager-pick', (event) => {
+        event.preventDefault();
+        const fileInput = document.getElementById('h-media-manager-file');
+        if (fileInput && fileInput instanceof HTMLInputElement) {
+          fileInput.click();
+        }
+      });
+
+      $(document).on('change', '#h-media-manager-file', () => {
+        this._syncFileName();
+      });
+
       $(document).on('click', '#h-media-manager-upload', (event) => {
         event.preventDefault();
         this.upload();
@@ -872,9 +884,23 @@
         if (!url) return;
         this.applySelection(url);
       });
+
+      $(document).on('click', '[data-media-delete-path]', (event) => {
+        event.preventDefault();
+        const button = event.currentTarget;
+        const path = String($(button).data('mediaDeletePath') || '').trim();
+        const name = String($(button).data('mediaDeleteName') || '').trim();
+        const url = String($(button).data('mediaDeleteUrl') || '').trim();
+        if (!path) {
+          HToast.warning('Delete path is missing for this media file.');
+          return;
+        }
+        this.remove(path, name || path, url);
+      });
     },
 
     open() {
+      this._syncFileName();
       this._syncTargetNote();
       HModal.open('h-media-manager-modal');
       this.load();
@@ -909,6 +935,7 @@
         const url = this._escape(item.url || '');
         const name = this._escape(item.name || 'file');
         const type = String(item.type || 'file');
+        const path = this._escape(item.path || '');
         const extension = this._escape(item.extension || '');
         const size = this._escape(item.size_kb || '');
         const modified = this._escape(item.modified_at || '');
@@ -932,9 +959,14 @@
               <div class="h-media-browser-name" title="${name}">${name}</div>
               <div class="h-media-browser-sub">${extension.toUpperCase()} • ${size} KB • ${modified}</div>
             </div>
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-media-pick-url="${url}">
-              <i class="fa-solid fa-check me-1"></i>Use
-            </button>
+            <div class="h-media-browser-actions">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-media-pick-url="${url}">
+                <i class="fa-solid fa-check me-1"></i>Use
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-sm" data-media-delete-path="${path}" data-media-delete-name="${name}" data-media-delete-url="${url}" ${path ? '' : 'disabled'}>
+                <i class="fa-solid fa-trash me-1"></i>Delete
+              </button>
+            </div>
           </article>
         `;
       }).join('');
@@ -968,6 +1000,7 @@
       }).done((payload) => {
         const item = payload && payload.item ? payload.item : null;
         fileInput.value = '';
+        this._syncFileName();
         this.load();
         if (item && item.url && this._targetInputId) {
           this.applySelection(String(item.url));
@@ -978,6 +1011,43 @@
         const message = xhr && xhr.responseJSON && xhr.responseJSON.message
           ? xhr.responseJSON.message
           : 'Upload failed.';
+        HToast.error(message);
+      });
+    },
+
+    remove(path, name, url) {
+      const endpoint = String(document.body.dataset.fileManagerDeleteUrl || '').trim();
+      if (!endpoint || !window.HApi || typeof window.HApi.post !== 'function') {
+        HToast.error('Media delete endpoint is not configured.');
+        return;
+      }
+
+      const label = name || path;
+      if (!window.confirm('Delete "' + label + '" permanently?')) {
+        return;
+      }
+
+      window.HApi.post(endpoint, { path }, {
+        dataType: 'json',
+        headers: {
+          Accept: 'application/json',
+        },
+      }).done((payload) => {
+        const message = payload && payload.message ? payload.message : 'Media deleted.';
+        HToast.success(message);
+        this.load();
+        if (this._targetInputId) {
+          const target = document.getElementById(this._targetInputId);
+          if (target && 'value' in target && String(target.value || '').trim() === url) {
+            target.value = '';
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+            target.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      }).fail((xhr) => {
+        const message = xhr && xhr.responseJSON && xhr.responseJSON.message
+          ? xhr.responseJSON.message
+          : 'Unable to delete media.';
         HToast.error(message);
       });
     },
@@ -1017,6 +1087,17 @@
       }
       note.hidden = false;
       note.textContent = 'Selecting file for #' + this._targetInputId + '. Click "Use" to insert.';
+    },
+
+    _syncFileName() {
+      const fileInput = document.getElementById('h-media-manager-file');
+      const fileName = document.getElementById('h-media-manager-file-name');
+      if (!fileName) return;
+      if (!fileInput || !(fileInput instanceof HTMLInputElement) || !fileInput.files || !fileInput.files[0]) {
+        fileName.textContent = 'No file selected';
+        return;
+      }
+      fileName.textContent = String(fileInput.files[0].name || 'Selected file');
     },
 
     _escape(input) {
@@ -2571,14 +2652,15 @@
       const pageLength = Number($table.data('pageLength') || 10);
       const orderCol = Number($table.data('orderCol') || 0);
       const orderDir = String($table.data('orderDir') || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
-      const lengthMenu = this._parseLengthMenu($table.data('lengthMenu'));
+      const lengthValues = this._parseLengthMenu($table.data('lengthMenu'));
+      const lengthMenu = [lengthValues, lengthValues.map((value) => String(value))];
       const emptyText = String($table.data('emptyText') || 'Empty').trim() || 'Empty';
       const normalizedPageLength = Number.isFinite(pageLength) && pageLength > 0
         ? Math.max(1, Math.min(pageLength, 100))
-        : (lengthMenu[0] || 10);
-      const defaultPageLength = lengthMenu.includes(normalizedPageLength)
+        : (lengthValues[0] || 10);
+      const defaultPageLength = lengthValues.includes(normalizedPageLength)
         ? normalizedPageLength
-        : (lengthMenu[0] || 10);
+        : (lengthValues[0] || 10);
       const self = this;
 
       if ($.fn.DataTable.isDataTable(tableEl)) {
@@ -2589,7 +2671,7 @@
         if (api.columns && typeof api.columns.adjust === 'function') {
           api.columns.adjust();
         }
-        this._styleControls($(api.table().container()), lengthMenu);
+        this._styleControls($(api.table().container()), lengthValues);
         return;
       }
 
@@ -2621,11 +2703,11 @@
         },
         initComplete: function () {
           const $container = $(this.api().table().container());
-          self._styleControls($container, lengthMenu);
+          self._styleControls($container, lengthValues);
         },
         drawCallback: function () {
           const $container = $(this.api().table().container());
-          self._styleControls($container, lengthMenu);
+          self._styleControls($container, lengthValues);
         },
       };
 

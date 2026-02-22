@@ -96,7 +96,7 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
           <li>For remote datasets, use <code>data-select2-remote</code> + <code>data-endpoint</code> on a native <code>&lt;select&gt;</code>.</li>
           <li>Keep page content inside <code>#h-spa-content</code> for partial navigation.</li>
           <li>Include <code>&lt;x-confirm-modal /&gt;</code> once in the layout.</li>
-          <li>Add sidebar links for <code>Docs</code> and a single <code>Settings</code> control center route so the team can manage app, users, RBAC, and diagnostics from one place.</li>
+          <li>Add sidebar links for <code>Docs</code> and <code>Settings</code>, with dedicated pages for users and RBAC management.</li>
           <li>For Settings navigation, use query-aware URLs like <code>/settings?tab=settings-activity</code> and dedicated management pages <code>/settings/users</code> / <code>/settings/rbac</code>.</li>
           <li>Use Blade components (<code>&lt;x-icon&gt;</code>, <code>&lt;x-select&gt;</code>, <code>&lt;x-editor&gt;</code>) for consistent scaffolding.</li>
         </ol>
@@ -118,7 +118,7 @@ document.addEventListener('hspa:afterSwap', (event) =&gt; {
         <p>Use these docs as implementation blueprints when building your own modules.</p>
         <ul>
           <li><code>docs/tutorials/CRUD_WORKFLOW.md</code> for list + create/edit/delete flows.</li>
-          <li><code>docs/tutorials/NOTIFICATION_AUTOMATION.md</code> for model/action based alerts.</li>
+          <li><code>docs/tutorials/NOTIFIER_HELPER.md</code> for controller/service notification dispatch.</li>
           <li><code>docs/tutorials/INTEGRATIONS_FACEBOOK_TELEGRAM.md</code> for login + bot delivery setup.</li>
         </ul>
       </section>

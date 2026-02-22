@@ -67,6 +67,7 @@
   data-favicon-url="{{ $brandFavicon !== '' ? $brandFavicon : asset('favicon.ico') }}"
   data-file-manager-list-url="{{ route('ui.filemanager.index') }}"
   data-file-manager-upload-url="{{ route('ui.filemanager.upload') }}"
+  data-file-manager-delete-url="{{ route('ui.filemanager.delete') }}"
   data-global-search-url="{{ route('ui.search.global') }}"
   data-theme-color="{{ $themeColor }}"
   data-notification-read-all-url="{{ auth()->user()->can('view notifications') ? route('notifications.read_all') : '' }}"
@@ -156,7 +157,7 @@
     @endcan
     @if(auth()->user()->can('view settings'))
       @php
-        $settingsRouteActive = request()->routeIs('settings.index') || request()->routeIs('settings.users.*') || request()->routeIs('settings.rbac');
+        $settingsRouteActive = request()->routeIs('settings.index') || request()->routeIs('settings.users.*') || request()->routeIs('settings.rbac*');
       @endphp
       <div
         class="h-nav-group {{ $settingsRouteActive ? 'open' : '' }}"
@@ -442,7 +443,14 @@
     <div class="h-modal-body">
       <div class="h-media-manager-head">
         <input type="text" class="form-control form-control-sm" id="h-media-manager-search" placeholder="Search media files...">
-        <input type="file" class="form-control form-control-sm" id="h-media-manager-file" accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.ico,.mp3,.wav,.ogg,.m4a,.aac,.flac,image/*,audio/*">
+        <div class="h-media-upload-row">
+          <input type="file" class="d-none" id="h-media-manager-file" accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.ico,.mp3,.wav,.ogg,.m4a,.aac,.flac,image/*,audio/*">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="h-media-manager-pick">
+            <i class="fa-solid fa-paperclip me-1"></i>
+            Choose File
+          </button>
+          <span class="h-media-upload-file" id="h-media-manager-file-name">No file selected</span>
+        </div>
         <button type="button" class="btn btn-sm btn-primary" id="h-media-manager-upload">
           <i class="fa-solid fa-upload me-1"></i>
           Upload
