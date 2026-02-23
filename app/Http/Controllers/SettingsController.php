@@ -77,6 +77,7 @@ class SettingsController extends Controller
             'initialFolder' => $folder,
             'storageLabel' => $usingS3 ? ('AWS S3: ' . $s3Bucket) : 'Local /public/uploads',
             'storageDisk' => $usingS3 ? 's3' : 'public',
+            'canManageSettings' => (bool) ($request->user() && $request->user()->can('manage settings')),
         ]);
     }
 
