@@ -391,9 +391,12 @@
       document.addEventListener('hspa:afterLoad', () => this.refresh(true));
 
       this.refresh(true);
-      const pollSeconds = Number($('body').data('notificationsPollSeconds') || 20);
-      const safePollMs = Math.max(10, Math.min(pollSeconds, 300)) * 1000;
-      this._pollTimer = window.setInterval(() => this.refresh(true), safePollMs);
+      const autoPoll = Number($('body').data('notificationsAutoPoll') || 0) === 1;
+      if (autoPoll) {
+        const pollSeconds = Number($('body').data('notificationsPollSeconds') || 20);
+        const safePollMs = Math.max(10, Math.min(pollSeconds, 300)) * 1000;
+        this._pollTimer = window.setInterval(() => this.refresh(true), safePollMs);
+      }
     },
 
     open() {
@@ -682,52 +685,90 @@
 
   /* ── DEV HOT RELOAD ───────────────────────────────── */
   const HHotReload = {
-    _timer: null,
+    _source: null,
     _signature: '',
-    _endpoint: '',
+    _streamEndpoint: '',
 
     init() {
       const enabled = Number($('body').data('hotReloadEnabled') || 0) === 1;
-      this._endpoint = String($('body').data('hotReloadUrl') || '').trim();
+      this._streamEndpoint = String($('body').data('hotReloadStreamUrl') || '').trim();
 
-      if (!enabled || !this._endpoint) {
+      if (!enabled || !this._streamEndpoint || typeof window.EventSource !== 'function') {
         return;
       }
 
-      this.poll();
-      this._timer = window.setInterval(() => this.poll(), 2500);
+      this.connect();
 
       document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) this.poll();
+        if (document.hidden) {
+          this.close();
+          return;
+        }
+        this.connect(true);
+      });
+
+      window.addEventListener('beforeunload', () => this.close());
+    },
+
+    connect(force = false) {
+      if (
+        !force &&
+        this._source &&
+        this._source.readyState !== window.EventSource.CLOSED
+      ) {
+        return;
+      }
+
+      this.close();
+
+      const endpoint = this._streamUrl();
+      if (!endpoint) return;
+
+      try {
+        this._source = new window.EventSource(endpoint, { withCredentials: true });
+      } catch (error) {
+        this._source = null;
+        return;
+      }
+
+      this._source.addEventListener('signature', (event) => {
+        const payload = this._parsePayload(event && event.data ? event.data : '');
+        const nextSignature = String(payload && payload.signature ? payload.signature : '').trim();
+        if (!nextSignature) return;
+
+        if (this._signature && this._signature !== nextSignature) {
+          window.location.reload();
+          return;
+        }
+
+        this._signature = nextSignature;
+      });
+
+      this._source.addEventListener('error', () => {
+        // EventSource reconnects automatically. Keep silent.
       });
     },
 
-    poll() {
-      if (!this._endpoint || document.hidden) return;
+    close() {
+      if (!this._source) return;
+      this._source.close();
+      this._source = null;
+    },
 
-      $.ajax({
-        url: this._endpoint,
-        method: 'GET',
-        dataType: 'json',
-        data: { sig: this._signature },
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        global: false,
-      })
-        .done((payload, _status, xhr) => {
-          if (xhr && Number(xhr.status) === 204) return;
-          const nextSignature = String(payload && payload.signature ? payload.signature : '').trim();
-          if (!nextSignature) return;
+    _streamUrl() {
+      const endpoint = String(this._streamEndpoint || '').trim();
+      if (!endpoint) return '';
+      if (!this._signature) return endpoint;
+      const joiner = endpoint.includes('?') ? '&' : '?';
+      return endpoint + joiner + 'sig=' + encodeURIComponent(this._signature);
+    },
 
-          if (this._signature && this._signature !== nextSignature) {
-            window.location.reload();
-            return;
-          }
-
-          this._signature = nextSignature;
-        })
-        .fail(() => {
-          // Keep hot reload silent; it is optional and local-only.
-        });
+    _parsePayload(raw) {
+      try {
+        return JSON.parse(String(raw || '{}'));
+      } catch (error) {
+        return {};
+      }
     },
   };
 
@@ -849,12 +890,14 @@
   /* ── MEDIA MANAGER ──────────────────────────────────── */
   const HMediaManager = {
     _targetInputId: '',
-    _query: '',
-    _folder: '',
-    _searchTimer: null,
+    _selectionHandler: null,
+    _assetPromise: null,
+    _fileInputSeed: 0,
 
     init() {
-      if (!$('#h-media-manager-modal').length) return;
+      const hasModal = Boolean(document.getElementById('h-media-manager-modal'));
+      const hasPage = Boolean(document.getElementById('settings-media-elfinder'));
+      if (!hasModal && !hasPage) return;
 
       $(document).on('click', '[data-media-manager-open]', (event) => {
         event.preventDefault();
@@ -862,312 +905,109 @@
         this.open();
       });
 
-      $(document).on('input', '#h-media-manager-search', (event) => {
-        this._query = String(event.currentTarget.value || '').trim();
-        window.clearTimeout(this._searchTimer);
-        this._searchTimer = window.setTimeout(() => this.load(), 170);
-      });
+      this.enhanceFileInputs(document);
+      this.mountPage();
 
-      $(document).on('change', '#h-media-manager-folder', (event) => {
-        const nextFolder = String(event.currentTarget.value || '').trim();
-        this._setFolder(nextFolder);
-      });
-
-      $(document).on('keydown', '#h-media-manager-folder', (event) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        const nextFolder = String(event.currentTarget.value || '').trim();
-        this._setFolder(nextFolder);
-      });
-
-      $(document).on('click', '#h-media-manager-pick', (event) => {
-        event.preventDefault();
-        const fileInput = document.getElementById('h-media-manager-file');
-        if (fileInput && fileInput instanceof HTMLInputElement) {
-          fileInput.click();
-        }
-      });
-
-      $(document).on('change', '#h-media-manager-file', () => {
-        this._syncFileName();
-      });
-
-      $(document).on('click', '#h-media-manager-upload', (event) => {
-        event.preventDefault();
-        this.upload();
-      });
-
-      $(document).on('click', '#h-media-manager-create-folder', (event) => {
-        event.preventDefault();
-        this.createFolder();
-      });
-
-      $(document).on('click', '[data-media-open-folder]', (event) => {
-        event.preventDefault();
-        const folder = String($(event.currentTarget).data('mediaOpenFolder') || '').trim();
-        this._setFolder(folder);
-      });
-
-      $(document).on('click', '[data-media-pick-url]', (event) => {
-        event.preventDefault();
-        const url = String($(event.currentTarget).data('mediaPickUrl') || '').trim();
-        if (!url) return;
-        this.applySelection(url);
-      });
-
-      $(document).on('click', '[data-media-delete-path]', (event) => {
-        event.preventDefault();
-        const button = event.currentTarget;
-        const path = String($(button).data('mediaDeletePath') || '').trim();
-        const name = String($(button).data('mediaDeleteName') || '').trim();
-        const url = String($(button).data('mediaDeleteUrl') || '').trim();
-        if (!path) {
-          HToast.warning('Delete path is missing for this media file.');
-          return;
-        }
-        this.remove(path, name || path, url);
+      document.addEventListener('hspa:afterSwap', () => {
+        this.enhanceFileInputs(document);
+        this.mountPage();
       });
     },
 
-    open() {
-      this._syncFileName();
+    open(options = {}) {
+      if (!document.getElementById('h-media-manager-modal')) return;
+      const opts = options && typeof options === 'object' ? options : {};
+      if (Object.prototype.hasOwnProperty.call(opts, 'targetInputId')) {
+        this._targetInputId = String(opts.targetInputId || '').trim();
+      }
+      this._selectionHandler = typeof opts.onSelect === 'function' ? opts.onSelect : null;
       this._syncTargetNote();
-      this._syncFolderInput();
-      this._syncExportLink();
       HModal.open('h-media-manager-modal');
-      this.load();
+      window.setTimeout(() => this.mountPicker(), 40);
     },
 
-    _setFolder(folder, refresh = true) {
-      this._folder = this._sanitizeFolder(folder);
-      this._syncFolderInput();
-      this._syncExportLink();
-      if (refresh) this.load();
+    mountPage() {
+      const container = document.getElementById('settings-media-elfinder');
+      if (!container) return;
+      this._mountElfinder(container, false);
     },
 
-    load() {
-      const endpoint = String(document.body.dataset.fileManagerListUrl || '').trim();
-      const grid = document.getElementById('h-media-manager-grid');
-      if (!endpoint || !grid || !window.HApi) return;
-
-      grid.innerHTML = '<div class="h-notif-empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading media...</span></div>';
-      HApi.get(endpoint, { q: this._query, limit: 160, folder: this._folder })
-        .done((payload) => {
-          const items = Array.isArray(payload.items) ? payload.items : [];
-          const folders = Array.isArray(payload.folders) ? payload.folders : [];
-          const currentFolder = String(payload.current_folder || this._folder || '').trim();
-          this.render(items, folders, currentFolder);
-        })
-        .fail(() => {
-          grid.innerHTML = '<div class="h-notif-empty"><i class="fa-regular fa-circle-xmark"></i><span>Unable to load media.</span></div>';
-        });
+    mountPicker() {
+      const container = document.getElementById('h-media-manager-elfinder');
+      if (!container) return;
+      this._mountElfinder(container, true);
     },
 
-    render(items, folders = [], currentFolder = '') {
-      const grid = document.getElementById('h-media-manager-grid');
-      if (!grid) return;
+    enhanceFileInputs(root) {
+      const scope = root && root.querySelectorAll ? root : document;
+      const inputs = Array.from(scope.querySelectorAll('input[type="file"]:not([data-media-enhanced])'));
+      if (!inputs.length) return;
 
-      this._folder = this._sanitizeFolder(currentFolder);
-      this._syncFolderInput();
-      this._syncExportLink();
+      inputs.forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) return;
+        if (input.closest('#h-media-manager-modal')) return;
+        if (input.hidden || input.classList.contains('d-none') || input.closest('.d-none')) return;
+        if (input.dataset.editorMediaUpload === '1') return;
 
-      const folderButtons = [];
-      const folderPath = this._folder;
-
-      if (folderPath !== '') {
-        folderButtons.push('<button type="button" class="btn btn-outline-secondary btn-sm" data-media-open-folder=""><i class="fa-solid fa-house me-1"></i>Root</button>');
-        const parent = folderPath.includes('/') ? folderPath.slice(0, folderPath.lastIndexOf('/')) : '';
-        folderButtons.push('<button type="button" class="btn btn-outline-secondary btn-sm" data-media-open-folder="' + this._escape(parent) + '"><i class="fa-solid fa-arrow-left me-1"></i>Up</button>');
-      }
-
-      folders.forEach((folder) => {
-        const path = this._escape(folder.path || '');
-        const name = this._escape(folder.name || path || 'Folder');
-        folderButtons.push('<button type="button" class="btn btn-outline-secondary btn-sm" data-media-open-folder="' + path + '"><i class="fa-regular fa-folder me-1"></i>' + name + '</button>');
-      });
-
-      const folderStrip = folderButtons.length
-        ? ('<div class="h-row mb-2" style="gap:8px;flex-wrap:wrap;">' + folderButtons.join('') + '</div>')
-        : '';
-
-      if (!Array.isArray(items) || items.length === 0) {
-        grid.innerHTML = folderStrip + '<div class="h-notif-empty"><i class="fa-regular fa-folder-open"></i><span>No files found.</span></div>';
-        return;
-      }
-
-      const rows = items.map((item) => {
-        const url = this._escape(item.url || '');
-        const name = this._escape(item.name || 'file');
-        const type = String(item.type || 'file');
-        const path = this._escape(item.path || '');
-        const extension = this._escape(item.extension || '');
-        const size = this._escape(item.size_kb || '');
-        const modified = this._escape(item.modified_at || '');
-
-        let preview = '<div class="h-media-file-icon"><i class="fa-regular fa-file"></i></div>';
-        if (type === 'image') {
-          preview = `<img src="${url}" alt="${name}" loading="lazy">`;
-        } else if (type === 'audio') {
-          preview = `
-            <div class="h-media-audio-preview">
-              <i class="fa-solid fa-wave-square"></i>
-              <audio controls preload="none" src="${url}"></audio>
-            </div>
-          `;
+        input.dataset.mediaEnhanced = '1';
+        input.classList.add('h-file-native');
+        if (!input.classList.contains('form-control')) {
+          input.classList.add('form-control');
         }
 
-        return `
-          <article class="h-media-browser-card" data-type="${this._escape(type)}">
-            <div class="h-media-browser-preview">${preview}</div>
-            <div class="h-media-browser-meta">
-              <div class="h-media-browser-name" title="${name}">${name}</div>
-              <div class="h-media-browser-sub">${extension.toUpperCase()} • ${size} KB • ${modified}</div>
-            </div>
-            <div class="h-media-browser-actions">
-              <button type="button" class="btn btn-outline-secondary btn-sm" data-media-pick-url="${url}">
-                <i class="fa-solid fa-check me-1"></i>Use
-              </button>
-              <button type="button" class="btn btn-outline-danger btn-sm" data-media-delete-path="${path}" data-media-delete-name="${name}" data-media-delete-url="${url}" ${path ? '' : 'disabled'}>
-                <i class="fa-solid fa-trash me-1"></i>Delete
-              </button>
-            </div>
-          </article>
-        `;
-      }).join('');
+        const hiddenId = this._ensureHiddenTarget(input);
+        const holder = document.createElement('div');
+        holder.className = 'h-media-input-tools mt-2 d-flex flex-column gap-1';
 
-      grid.innerHTML = folderStrip + rows;
-    },
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-outline-secondary btn-sm align-self-start';
+        button.setAttribute('data-media-manager-open', '');
+        button.setAttribute('data-media-target', hiddenId);
+        button.innerHTML = '<i class="fa-solid fa-photo-film me-2"></i>Choose from Media Library';
 
-    upload() {
-      const endpoint = String(document.body.dataset.fileManagerUploadUrl || '').trim();
-      const fileInput = document.getElementById('h-media-manager-file');
-      if (!endpoint || !fileInput || !(fileInput instanceof HTMLInputElement)) return;
+        const hint = document.createElement('small');
+        hint.className = 'text-muted';
+        hint.id = hiddenId + '-hint';
+        hint.textContent = 'Optional: use an existing file URL from Media Library.';
 
-      const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
-      if (!file) {
-        HToast.warning('Choose a file first.');
-        return;
-      }
+        holder.appendChild(button);
+        holder.appendChild(hint);
+        input.insertAdjacentElement('afterend', holder);
 
-      const token = String((document.querySelector('meta[name="csrf-token"]') || {}).content || '');
-      const data = new FormData();
-      data.append('file', file);
-      data.append('folder', this._folder || 'library');
-
-      $.ajax({
-        url: endpoint,
-        method: 'POST',
-        data,
-        processData: false,
-        contentType: false,
-        headers: token ? { 'X-CSRF-TOKEN': token } : {},
-      }).done((payload) => {
-        const item = payload && payload.item ? payload.item : null;
-        fileInput.value = '';
-        this._syncFileName();
-        this.load();
-        if (item && item.url && this._targetInputId) {
-          this.applySelection(String(item.url));
-        } else {
-          HToast.success('Media uploaded.');
+        const hidden = document.getElementById(hiddenId);
+        if (hidden && hidden instanceof HTMLInputElement) {
+          hidden.addEventListener('change', () => {
+            hint.textContent = hidden.value
+              ? ('Media URL selected: ' + hidden.value)
+              : 'Optional: use an existing file URL from Media Library.';
+          });
         }
-      }).fail((xhr) => {
-        const message = xhr && xhr.responseJSON && xhr.responseJSON.message
-          ? xhr.responseJSON.message
-          : 'Upload failed.';
-        HToast.error(message);
       });
     },
 
-    createFolder() {
-      const endpoint = String(document.body.dataset.fileManagerFolderUrl || '').trim();
-      if (!endpoint || !window.HApi || typeof window.HApi.post !== 'function') {
-        HToast.error('Media folder endpoint is not configured.');
-        return;
-      }
+    applySelection(url, file = null) {
+      const selectedUrl = String(url || '').trim();
+      if (!selectedUrl) return;
 
-      const folderInput = document.getElementById('h-media-manager-folder');
-      const typed = folderInput && folderInput instanceof HTMLInputElement
-        ? this._sanitizeFolder(String(folderInput.value || '').trim())
-        : '';
-
-      let entered = '';
-      if (typed && typed !== this._folder) {
-        entered = typed;
-      } else {
-        const suggested = this._folder ? (this._folder + '/new-folder') : 'new-folder';
-        const response = window.prompt('Folder path (example: branding/icons)', suggested);
-        entered = this._sanitizeFolder(String(response || '').trim());
-      }
-
-      if (!entered) return;
-
-      const parts = entered.split('/');
-      const name = String(parts.pop() || '').trim();
-      const parent = this._sanitizeFolder(parts.join('/'));
-      if (!name) {
-        HToast.warning('Folder name is missing.');
-        return;
-      }
-
-      HApi.post(endpoint, { name, parent }, {
-        dataType: 'json',
-        headers: {
-          Accept: 'application/json',
-        },
-      }).done((payload) => {
-        const message = payload && payload.message ? payload.message : 'Folder created.';
-        HToast.success(message);
-        this._setFolder(entered);
-      }).fail((xhr) => {
-        const message = xhr && xhr.responseJSON && xhr.responseJSON.message
-          ? xhr.responseJSON.message
-          : 'Unable to create folder.';
-        HToast.error(message);
-      });
-    },
-
-    remove(path, name, url) {
-      const endpoint = String(document.body.dataset.fileManagerDeleteUrl || '').trim();
-      if (!endpoint || !window.HApi || typeof window.HApi.post !== 'function') {
-        HToast.error('Media delete endpoint is not configured.');
-        return;
-      }
-
-      const label = name || path;
-      if (!window.confirm('Delete "' + label + '" permanently?')) {
-        return;
-      }
-
-      window.HApi.post(endpoint, { path }, {
-        dataType: 'json',
-        headers: {
-          Accept: 'application/json',
-        },
-      }).done((payload) => {
-        const message = payload && payload.message ? payload.message : 'Media deleted.';
-        HToast.success(message);
-        this.load();
-        if (this._targetInputId) {
-          const target = document.getElementById(this._targetInputId);
-          if (target && 'value' in target && String(target.value || '').trim() === url) {
-            target.value = '';
-            target.dispatchEvent(new Event('input', { bubbles: true }));
-            target.dispatchEvent(new Event('change', { bubbles: true }));
+      if (typeof this._selectionHandler === 'function') {
+        const handler = this._selectionHandler;
+        this._selectionHandler = null;
+        try {
+          handler(selectedUrl, file);
+        } catch (error) {
+          if (window.console && typeof window.console.warn === 'function') {
+            window.console.warn('Media selection handler failed:', error);
           }
         }
-      }).fail((xhr) => {
-        const message = xhr && xhr.responseJSON && xhr.responseJSON.message
-          ? xhr.responseJSON.message
-          : 'Unable to delete media.';
-        HToast.error(message);
-      });
-    },
+        HToast.success('Media selected.');
+        HModal.close('h-media-manager-modal');
+        return;
+      }
 
-    applySelection(url) {
       if (!this._targetInputId) {
         if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-          navigator.clipboard.writeText(url)
+          navigator.clipboard.writeText(selectedUrl)
             .then(() => HToast.success('Media URL copied to clipboard.'))
             .catch(() => HToast.info('Media selected.'));
         } else {
@@ -1176,74 +1016,404 @@
         return;
       }
 
-      const input = document.getElementById(this._targetInputId);
-      if (!input || !('value' in input)) {
+      const target = document.getElementById(this._targetInputId);
+      if (!target || !('value' in target)) {
         HToast.warning('Target input not found for selected media.');
         return;
       }
 
-      input.value = url;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
+      target.value = selectedUrl;
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
       HToast.success('Media selected.');
       HModal.close('h-media-manager-modal');
     },
 
-    _syncTargetNote() {
-      const note = document.getElementById('h-media-manager-target-note');
-      if (!note) return;
-      if (!this._targetInputId) {
-        note.hidden = true;
-        note.textContent = '';
+    _mountElfinder(container, pickerMode) {
+      const rawConnectorUrl = String(container.dataset.connectorUrl || '').trim();
+      const connectorCandidates = this._resolveConnectorUrls(rawConnectorUrl);
+      if (!connectorCandidates.length) {
+        container.innerHTML = '<div class="h-note">Media connector is not configured.</div>';
         return;
       }
-      note.hidden = false;
-      note.textContent = 'Selecting file for #' + this._targetInputId + '. Click "Use" to insert.';
+
+      this.ensureAssets()
+        .then(() => this._pickConnectorUrl(connectorCandidates))
+        .then((resolvedConnectorUrl) => {
+          if (!window.jQuery || !window.jQuery.fn || typeof window.jQuery.fn.elfinder !== 'function') {
+            throw new Error('elFinder did not load correctly.');
+          }
+
+          const $container = window.jQuery(container);
+          const mounted = String(container.dataset.elfinderMounted || '') === '1';
+          if (mounted) {
+            const instance = $container.elfinder('instance');
+            if (instance && typeof instance.exec === 'function') {
+              instance.exec('reload');
+            }
+            return;
+          }
+
+          const connectorUrl = String(resolvedConnectorUrl || container.dataset.elfinderConnectorResolved || connectorCandidates[0] || '').trim();
+          if (!connectorUrl) {
+            throw new Error('Media connector URL is empty.');
+          }
+          container.dataset.elfinderConnectorResolved = connectorUrl;
+
+          const readOnly = String(container.dataset.readOnly || '0') === '1';
+          const token = String((document.querySelector('meta[name="csrf-token"]') || {}).content || '');
+          const disabled = readOnly
+            ? ['upload', 'mkdir', 'mkfile', 'rename', 'rm', 'cut', 'paste', 'duplicate', 'archive', 'extract', 'resize', 'edit']
+            : [];
+
+          const toolbar = readOnly
+            ? [
+              ['back', 'forward'],
+              ['reload'],
+              ['home', 'up'],
+              ['open', 'quicklook', 'download', 'getfile'],
+              ['search'],
+              ['view', 'sort'],
+              ['info'],
+            ]
+            : [
+              ['back', 'forward'],
+              ['reload'],
+              ['home', 'up'],
+              ['mkdir', 'upload'],
+              ['open', 'quicklook', 'download', 'getfile'],
+              ['copy', 'cut', 'paste', 'duplicate'],
+              ['rm', 'rename'],
+              ['archive', 'extract', 'resize'],
+              ['search'],
+              ['view', 'sort'],
+              ['info'],
+            ];
+
+          const baseOptions = {
+            url: connectorUrl,
+            customData: token ? { _token: token } : {},
+            useBrowserHistory: false,
+            cssAutoLoad: false,
+            rememberLastDir: true,
+            resizable: false,
+            height: pickerMode ? Math.max(420, window.innerHeight - 280) : Math.max(560, window.innerHeight - 210),
+            disabled,
+            uiOptions: {
+              toolbar,
+            },
+            commandsOptions: {
+              getfile: {
+                folders: false,
+                multiple: false,
+                onlyURL: false,
+                oncomplete: pickerMode ? 'close' : '',
+              },
+            },
+          };
+
+          if (pickerMode) {
+            baseOptions.getFileCallback = (file) => {
+              const url = String(file && file.url ? file.url : '').trim();
+              if (!url) {
+                HToast.warning('Selected item has no public URL.');
+                return;
+              }
+              this.applySelection(url, file);
+            };
+          }
+
+          $container.elfinder(baseOptions);
+          container.dataset.elfinderMounted = '1';
+        })
+        .catch((error) => {
+          this._assetPromise = null;
+          const reason = String(error && error.message ? error.message : 'Unknown initialization error');
+          container.innerHTML = '<div class="h-note">Unable to load media manager: ' + this._escape(reason) + '.</div>';
+          if (window.console && typeof window.console.error === 'function') {
+            window.console.error('Media manager init failed:', error);
+          }
+          HToast.error('Media manager failed to initialize.');
+        });
     },
 
-    _syncFileName() {
-      const fileInput = document.getElementById('h-media-manager-file');
-      const fileName = document.getElementById('h-media-manager-file-name');
-      if (!fileName) return;
-      if (!fileInput || !(fileInput instanceof HTMLInputElement) || !fileInput.files || !fileInput.files[0]) {
-        fileName.textContent = 'No file selected';
-        return;
-      }
-      fileName.textContent = String(fileInput.files[0].name || 'Selected file');
+    ensureAssets() {
+      if (this._assetPromise) return this._assetPromise;
+      const body = document.body;
+      const uiCssCandidates = this._resolveAssetUrls(
+        String((body && body.dataset ? body.dataset.elfinderUiCssUrl : '') || ''),
+        'vendor/elfinder/jquery-ui/jquery-ui.min.css'
+      );
+      const uiJsCandidates = this._resolveAssetUrls(
+        String((body && body.dataset ? body.dataset.elfinderUiJsUrl : '') || ''),
+        'vendor/elfinder/jquery-ui/jquery-ui.min.js'
+      );
+      const fmCssCandidates = this._resolveAssetUrls(
+        String((body && body.dataset ? body.dataset.elfinderCssUrl : '') || ''),
+        'vendor/elfinder/elfinder/css/elfinder.min.css'
+      );
+      const fmThemeCssCandidates = this._resolveAssetUrls(
+        String((body && body.dataset ? body.dataset.elfinderThemeCssUrl : '') || ''),
+        'vendor/elfinder/elfinder/css/theme.css'
+      );
+      const fmJsCandidates = this._resolveAssetUrls(
+        String((body && body.dataset ? body.dataset.elfinderJsUrl : '') || ''),
+        'vendor/elfinder/elfinder/js/elfinder.min.js'
+      );
+
+      this._assetPromise = Promise.resolve()
+        .then(() => this._ensureStyle('h-elfinder-jquery-ui-css', uiCssCandidates))
+        .then(() => this._ensureStyle('h-elfinder-css', fmCssCandidates))
+        .then(() => this._ensureStyle('h-elfinder-theme-css', fmThemeCssCandidates))
+        .then(() => this._ensureScript('h-elfinder-jquery-ui-js', uiJsCandidates, () => {
+          const jq = window.jQuery;
+          return Boolean(
+            jq &&
+            jq.ui &&
+            jq.ui.draggable &&
+            jq.ui.droppable &&
+            jq.ui.resizable &&
+            jq.ui.selectable &&
+            jq.ui.button &&
+            jq.ui.slider
+          );
+        }))
+        .then(() => this._ensureScript('h-elfinder-js', fmJsCandidates, () => {
+          const jq = window.jQuery;
+          return Boolean(jq && jq.fn && typeof jq.fn.elfinder === 'function');
+        }));
+
+      return this._assetPromise;
     },
 
-    _syncFolderInput() {
-      const input = document.getElementById('h-media-manager-folder');
-      if (!input || !(input instanceof HTMLInputElement)) return;
-      input.value = this._folder;
-    },
-
-    _syncExportLink() {
-      const link = document.getElementById('h-media-manager-export');
-      const endpoint = String(document.body.dataset.fileManagerExportUrl || '').trim();
-      if (!link || !(link instanceof HTMLAnchorElement) || !endpoint) return;
-
-      const url = new URL(endpoint, window.location.origin);
-      if (this._folder) {
-        url.searchParams.set('folder', this._folder);
-      } else {
-        url.searchParams.delete('folder');
-      }
-      link.href = url.toString();
-    },
-
-    _sanitizeFolder(folder) {
-      const cleaned = String(folder || '').replace(/\\/g, '/').trim().replace(/^\/+|\/+$/g, '');
-      if (!cleaned) return '';
-
-      const segments = cleaned
-        .split('/')
-        .map((segment) => segment.trim())
-        .filter((segment) => segment && segment !== '.' && segment !== '..')
-        .map((segment) => segment.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, ''))
+    _ensureStyle(id, hrefCandidates) {
+      const urls = Array.isArray(hrefCandidates) ? hrefCandidates : [hrefCandidates];
+      const cleanUrls = urls
+        .map((url) => String(url || '').trim())
         .filter(Boolean);
 
-      return segments.join('/');
+      if (!cleanUrls.length) {
+        return Promise.reject(new Error('Style URL is missing.'));
+      }
+
+      const byId = document.getElementById(id);
+      if (byId && byId.tagName === 'LINK') {
+        const currentHref = String(byId.getAttribute('href') || '').trim();
+        if (cleanUrls.includes(currentHref)) return Promise.resolve();
+        byId.remove();
+      }
+
+      const existing = cleanUrls.find((url) => document.querySelector('link[href="' + url + '"]'));
+      if (existing) return Promise.resolve();
+
+      return this._loadStyleWithFallback(id, cleanUrls);
+    },
+
+    _ensureScript(id, srcCandidates, validator) {
+      const urls = Array.isArray(srcCandidates) ? srcCandidates : [srcCandidates];
+      const cleanUrls = urls
+        .map((url) => String(url || '').trim())
+        .filter(Boolean);
+
+      if (!cleanUrls.length) {
+        return Promise.reject(new Error('Script URL is missing.'));
+      }
+
+      const byId = document.getElementById(id);
+      if (byId && byId.tagName === 'SCRIPT') {
+        const currentSrc = String(byId.getAttribute('src') || '').trim();
+        if (cleanUrls.includes(currentSrc) && byId.dataset.hLoaded === '1' && (!validator || validator())) {
+          return Promise.resolve();
+        }
+        byId.remove();
+      }
+
+      if (validator && !validator()) {
+        cleanUrls.forEach((url) => {
+          const existing = document.querySelector('script[src="' + url + '"]');
+          if (existing && existing.id !== id) {
+            existing.remove();
+          }
+        });
+      }
+
+      const loaded = cleanUrls.find((url) => {
+        const existing = document.querySelector('script[src="' + url + '"]');
+        return existing && existing.dataset.hLoaded === '1' && (!validator || validator());
+      });
+      if (loaded) return Promise.resolve();
+
+      return this._loadScriptWithFallback(id, cleanUrls, 0, validator);
+    },
+
+    _loadStyleWithFallback(id, urls, idx = 0) {
+      if (idx >= urls.length) {
+        return Promise.reject(new Error('Failed to load style: ' + urls.join(', ')));
+      }
+
+      const href = urls[idx];
+      return new Promise((resolve, reject) => {
+        const style = document.createElement('link');
+        style.id = id;
+        style.rel = 'stylesheet';
+        style.href = href;
+        style.onload = () => resolve();
+        style.onerror = () => {
+          style.remove();
+          reject(new Error('Failed to load style: ' + href));
+        };
+        document.head.appendChild(style);
+      }).catch(() => this._loadStyleWithFallback(id, urls, idx + 1));
+    },
+
+    _loadScriptWithFallback(id, urls, idx = 0, validator = null) {
+      if (idx >= urls.length) {
+        return Promise.reject(new Error('Failed to load script: ' + urls.join(', ')));
+      }
+
+      const src = urls[idx];
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.id = id;
+        script.src = src;
+        script.async = false;
+        script.onload = () => {
+          if (validator && !validator()) {
+            script.remove();
+            reject(new Error('Script loaded but did not initialize: ' + src));
+            return;
+          }
+          script.dataset.hLoaded = '1';
+          resolve();
+        };
+        script.onerror = () => {
+          script.remove();
+          reject(new Error('Failed to load script: ' + src));
+        };
+        document.body.appendChild(script);
+      }).catch(() => this._loadScriptWithFallback(id, urls, idx + 1, validator));
+    },
+
+    _resolveAssetUrls(preferredUrl, relativePath) {
+      const urls = [];
+      const push = (value) => {
+        const url = String(value || '').trim();
+        if (!url || urls.includes(url)) return;
+        urls.push(url);
+      };
+
+      push(preferredUrl);
+
+      const rel = String(relativePath || '').replace(/^\/+/, '');
+      if (!rel) return urls;
+
+      const origin = String(window.location.origin || '').trim();
+      const basePrefix = this._inferAppBasePrefix();
+      const publicRel = 'public/' + rel;
+
+      if (origin) {
+        push(origin + '/' + rel);
+        if (basePrefix !== '') {
+          push(origin + basePrefix + '/' + rel);
+        }
+        push(origin + '/' + publicRel);
+        if (basePrefix !== '') {
+          push(origin + basePrefix + '/' + publicRel);
+        }
+      }
+
+      push('/' + rel);
+      if (basePrefix !== '') {
+        push(basePrefix + '/' + rel);
+      }
+      push('/' + publicRel);
+      if (basePrefix !== '') {
+        push(basePrefix + '/' + publicRel);
+      }
+
+      return urls;
+    },
+
+    _inferAppBasePrefix() {
+      const pathname = String(window.location.pathname || '/');
+      const segments = pathname.split('/').filter(Boolean);
+      if (!segments.length) return '';
+
+      const routeRoots = new Set(['settings', 'dashboard', 'docs', 'login', 'register', '2fa', 'auth', 'notifications', 'ui']);
+      const idx = segments.findIndex((segment) => routeRoots.has(segment.toLowerCase()));
+      if (idx <= 0) return '';
+
+      return '/' + segments.slice(0, idx).join('/');
+    },
+
+    _resolveConnectorUrls(preferredUrl) {
+      const urls = [];
+      const push = (value) => {
+        const url = String(value || '').trim();
+        if (!url || urls.includes(url)) return;
+        urls.push(url);
+      };
+
+      const basePrefix = this._inferAppBasePrefix();
+      const origin = String(window.location.origin || '').trim();
+      const sameOriginPath = (basePrefix ? basePrefix : '') + '/settings/media/connector';
+
+      push(sameOriginPath);
+      push('/settings/media/connector');
+      if (origin) {
+        push(origin + sameOriginPath);
+        push(origin + '/settings/media/connector');
+      }
+      push(preferredUrl);
+
+      return urls;
+    },
+
+    _pickConnectorUrl(urlCandidates) {
+      const urls = Array.isArray(urlCandidates)
+        ? urlCandidates.map((url) => String(url || '').trim()).filter(Boolean)
+        : [];
+
+      if (!urls.length) {
+        return Promise.reject(new Error('No connector URL candidates available.'));
+      }
+
+      const tryAt = (idx) => {
+        if (idx >= urls.length) {
+          throw new Error('No working media connector endpoint found.');
+        }
+
+        const candidate = urls[idx];
+        const probeUrl = candidate + (candidate.includes('?') ? '&' : '?') + 'cmd=open&init=1&tree=1';
+
+        return window.fetch(probeUrl, {
+          method: 'GET',
+          credentials: 'same-origin',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error('HTTP ' + response.status + ' on ' + candidate);
+            }
+            return response.text().then((text) => ({ text, candidate }));
+          })
+          .then(({ text, candidate: resolved }) => {
+            const payload = String(text || '').trim();
+            if (!payload.startsWith('{') && !payload.startsWith('[')) {
+              throw new Error('Invalid connector response from ' + resolved);
+            }
+            return resolved;
+          })
+          .catch(() => tryAt(idx + 1));
+      };
+
+      return Promise.resolve()
+        .then(() => tryAt(0))
+        .then((resolved) => {
+          return resolved;
+        });
     },
 
     _escape(input) {
@@ -1253,6 +1423,42 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    },
+
+    _ensureHiddenTarget(fileInput) {
+      const sourceId = String(fileInput.id || '').trim();
+      const hiddenId = sourceId
+        ? (sourceId + '-media-url')
+        : ('h-media-file-url-' + (++this._fileInputSeed));
+
+      let hidden = document.getElementById(hiddenId);
+      if (!hidden) {
+        hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.id = hiddenId;
+        if (fileInput.name) {
+          hidden.name = fileInput.name + '_media_url';
+        }
+        fileInput.insertAdjacentElement('afterend', hidden);
+      }
+
+      return hiddenId;
+    },
+
+    _syncTargetNote() {
+      const note = document.getElementById('h-media-manager-target-note');
+      if (!note) return;
+
+      if (!this._targetInputId) {
+        note.hidden = false;
+        note.textContent = this._selectionHandler
+          ? 'Selecting media for editor. Double-click a file or use toolbar action to inject URL.'
+          : 'Tip: right-click a file and choose "Get file URL", or use the toolbar select button.';
+        return;
+      }
+
+      note.hidden = false;
+      note.textContent = 'Selecting file for #' + this._targetInputId + '. Use "Get file URL" to inject.';
     },
   };
 
@@ -1529,16 +1735,32 @@
   function updateClock() {
     const $clock = $('#h-live-clock,#h-clock');
     if (!$clock.length) return;
+    const userLocale = String(document.body?.dataset?.uiLocale || 'en').toLowerCase() === 'ne' ? 'ne' : 'en';
+    const now = new Date();
+    if (window.HNepaliDate && typeof window.HNepaliDate.dual === 'function') {
+      $clock.text(window.HNepaliDate.dual(now, { locale: userLocale, withTime: true }));
+      return;
+    }
 
-    $clock.text(
-      new Date().toLocaleString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    );
+    const english = now.toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Kathmandu',
+    });
+    const nepali = now.toLocaleString('ne-NP', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kathmandu',
+    });
+
+    $clock.text(userLocale === 'ne' ? (nepali + ' | ' + english) : (english + ' | ' + nepali));
   }
 
   /* ── AJAX BASE CONFIG ─────────────────────────────────── */
@@ -1559,7 +1781,8 @@
   const HUtils = {
     formatNPR(numberValue) {
       const parsed = typeof numberValue === 'number' ? numberValue : Number(numberValue) || 0;
-      return 'रू ' + parsed.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const userLocale = String(document.body?.dataset?.uiLocale || 'en').toLowerCase() === 'ne' ? 'ne-NP' : 'en-IN';
+      return 'रू ' + parsed.toLocaleString(userLocale, { minimumFractionDigits: 2 });
     },
 
     htmlToDoc(html) {
@@ -1991,6 +2214,7 @@
         'notificationsFeedUrl',
         'notificationReadUrlTemplate',
         'notificationsPollSeconds',
+        'notificationsAutoPoll',
         'browserNotifyEnabled',
         'pwaEnabled',
         'swUrl',
@@ -2007,6 +2231,13 @@
         'themeColor',
         'notificationReadAllUrl',
         'notificationSoundUrl',
+        'uiLocale',
+        'hotReloadStreamUrl',
+        'elfinderUiCssUrl',
+        'elfinderUiJsUrl',
+        'elfinderCssUrl',
+        'elfinderThemeCssUrl',
+        'elfinderJsUrl',
       ];
 
       keys.forEach((key) => {
@@ -2798,6 +3029,8 @@
       if (!$table || !$table.length) return;
 
       const tableEl = $table[0];
+      const locale = this._locale();
+      const isNepali = locale === 'ne';
       const endpoint = String($table.data('endpoint') || '').trim();
       const columns = this._columns($table);
       const pageLength = Number($table.data('pageLength') || 10);
@@ -2845,12 +3078,18 @@
         order: [[Number.isFinite(orderCol) ? Math.max(0, orderCol) : 0, orderDir]],
         language: {
           search: '',
-          searchPlaceholder: 'Search...',
-          lengthMenu: 'Show _MENU_ rows',
+          searchPlaceholder: isNepali ? 'खोज्नुहोस्...' : 'Search...',
+          lengthMenu: isNepali ? '_MENU_ पङ्क्ति देखाउनुहोस्' : 'Show _MENU_ rows',
           emptyTable: emptyText,
           zeroRecords: emptyText,
-          loadingRecords: 'Loading...',
-          processing: 'Loading...',
+          loadingRecords: isNepali ? 'लोड हुँदैछ...' : 'Loading...',
+          processing: isNepali ? 'लोड हुँदैछ...' : 'Loading...',
+          info: isNepali ? '_TOTAL_ मध्ये _START_ देखि _END_ प्रविष्टि' : 'Showing _START_ to _END_ of _TOTAL_ entries',
+          infoEmpty: isNepali ? '० प्रविष्टि' : '0 entries',
+          paginate: {
+            previous: isNepali ? 'अघिल्लो' : 'Previous',
+            next: isNepali ? 'अर्को' : 'Next',
+          },
         },
         initComplete: function () {
           const $container = $(this.api().table().container());
@@ -2915,6 +3154,7 @@
 
     _columns($table) {
       const columns = [];
+      const self = this;
 
       $table.find('thead th[data-col]').each((_, th) => {
         const key = String($(th).data('col') || '').trim();
@@ -2922,19 +3162,88 @@
         const className = String(th.className || '').trim();
         const rawOrderable = String($(th).data('orderable') ?? '').trim().toLowerCase();
         const rawSearchable = String($(th).data('searchable') ?? '').trim().toLowerCase();
+        const rawDate = String($(th).data('date') ?? '').trim().toLowerCase();
         const orderable = rawOrderable === '' ? true : !['false', '0', 'no'].includes(rawOrderable);
         const searchable = rawSearchable === '' ? true : !['false', '0', 'no'].includes(rawSearchable);
-        columns.push({
+        const isDateOnly = rawDate === 'date'
+          || (rawDate === '' && String(key).toLowerCase().endsWith('_date'));
+        const isDateColumn = rawDate === ''
+          ? self._looksLikeDateColumn(key)
+          : ['1', 'true', 'yes', 'date', 'datetime'].includes(rawDate);
+
+        const column = {
           data: key,
           name: key,
           className,
           orderable,
           searchable,
           defaultContent: '<span class="h-cell-empty">Empty</span>',
-        });
+        };
+
+        if (isDateColumn) {
+          column.render = function (value, type) {
+            return self._renderDateCell(value, type, !isDateOnly);
+          };
+        }
+
+        columns.push(column);
       });
 
       return columns;
+    },
+
+    _locale() {
+      return String(document.body?.dataset?.uiLocale || 'en').toLowerCase() === 'ne' ? 'ne' : 'en';
+    },
+
+    _looksLikeDateColumn(key) {
+      const normalized = String(key || '').toLowerCase();
+      if (!normalized) return false;
+      return normalized.endsWith('_at')
+        || normalized.includes('datetime')
+        || normalized.includes('date')
+        || normalized.includes('time');
+    },
+
+    _renderDateCell(value, type, withTime = true) {
+      const raw = String(value ?? '').trim();
+      if (!raw) {
+        return type === 'display' ? '<span class="h-cell-empty">Empty</span>' : '';
+      }
+
+      if (type === 'sort' || type === 'type') {
+        const ts = Date.parse(raw);
+        return Number.isNaN(ts) ? raw : String(ts);
+      }
+
+      const locale = this._locale();
+      if (window.HNepaliDate && typeof window.HNepaliDate.dual === 'function') {
+        return this._escape(window.HNepaliDate.dual(raw, { locale, withTime }));
+      }
+
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) {
+        if (!withTime) {
+          return this._escape(parsed.toLocaleDateString(locale === 'ne' ? 'ne-NP' : 'en-US', {
+            timeZone: 'Asia/Kathmandu',
+          }));
+        }
+
+        return this._escape(parsed.toLocaleString(locale === 'ne' ? 'ne-NP' : 'en-US', {
+          timeZone: 'Asia/Kathmandu',
+        }));
+      }
+
+      return this._escape(raw);
+    },
+
+    _escape(input) {
+      return String(input ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     },
 
     _parseLengthMenu(raw) {
@@ -3615,22 +3924,25 @@
                 <input type="text" class="form-control" name="alt" placeholder="Describe image">
               </div>
             </div>
-            <div class="h-editor-fm-wrap">
-              <button type="button" class="btn btn-outline-secondary btn-sm" data-editor-fm-toggle>
-                <i class="fa-solid fa-folder-open me-1"></i>
-                Choose From File Manager
+            <div class="h-editor-media-tools">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-editor-media-pick>
+                <i class="fa-solid fa-photo-film me-1"></i>
+                Choose From Media Library
               </button>
-              <div class="h-editor-fm-panel" hidden>
-                <div class="h-editor-fm-head">
-                  <input type="text" class="form-control form-control-sm" placeholder="Search files..." data-editor-fm-search>
-                  <div class="h-editor-fm-upload">
-                    <input type="file" class="form-control form-control-sm" data-editor-fm-file accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.ico,image/*">
-                    <button type="button" class="btn btn-sm btn-primary" data-editor-fm-upload>Upload</button>
-                  </div>
-                </div>
-                <div class="h-editor-fm-grid" data-editor-fm-grid></div>
+              <label class="btn btn-outline-secondary btn-sm mb-0 h-editor-media-upload">
+                <i class="fa-solid fa-upload me-1"></i>
+                Upload From Device
+                <input type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.ico,image/*" data-editor-media-upload="1">
+              </label>
+            </div>
+            <div class="h-editor-media-preview" data-editor-media-preview hidden>
+              <img src="" alt="" data-editor-media-preview-img>
+              <div class="h-editor-media-preview-copy">
+                <div class="h-editor-media-preview-title">Selected media</div>
+                <div class="h-editor-media-preview-url" data-editor-media-preview-url>URL will appear here.</div>
               </div>
             </div>
+            <div class="h-note h-editor-modal-note">Tip: paste URL manually, upload directly, or choose from Media Library.</div>
           `,
         },
         table: {
@@ -3682,7 +3994,7 @@
       `;
 
       if (type === 'image') {
-        this._bindFileManagerPanel(formEl);
+        this._bindImageTool(formEl);
       }
 
       if (window.HModal) {
@@ -3754,108 +4066,105 @@
       });
     },
 
-    _bindFileManagerPanel(formEl) {
-      const panel = formEl.querySelector('.h-editor-fm-panel');
-      const toggle = formEl.querySelector('[data-editor-fm-toggle]');
-      const grid = formEl.querySelector('[data-editor-fm-grid]');
-      const search = formEl.querySelector('[data-editor-fm-search]');
-      const fileInput = formEl.querySelector('[data-editor-fm-file]');
-      const uploadBtn = formEl.querySelector('[data-editor-fm-upload]');
+    _bindImageTool(formEl) {
       const srcInput = formEl.querySelector('input[name="src"]');
+      const pickButton = formEl.querySelector('[data-editor-media-pick]');
+      const uploadInput = formEl.querySelector('input[data-editor-media-upload]');
+      const preview = formEl.querySelector('[data-editor-media-preview]');
+      const previewImg = formEl.querySelector('[data-editor-media-preview-img]');
+      const previewUrl = formEl.querySelector('[data-editor-media-preview-url]');
 
-      if (!panel || !toggle || !grid || !search || !uploadBtn || !fileInput || !srcInput) return;
+      if (!srcInput) return;
 
-      const render = (items) => {
-        if (!Array.isArray(items) || items.length === 0) {
-          grid.innerHTML = '<div class="h-muted" style="font-size:12px;">No files found.</div>';
+      const setPreview = (url) => {
+        const value = String(url || '').trim();
+        if (!preview || !previewImg || !previewUrl) return;
+        if (!value || !this._isSafeUrl(value)) {
+          preview.setAttribute('hidden', 'hidden');
+          previewImg.setAttribute('src', '');
+          previewUrl.textContent = 'URL will appear here.';
           return;
         }
-
-        grid.innerHTML = items.map((item) => `
-          <button type="button" class="h-editor-fm-item" data-file-url="${this._escapeAttribute(item.url || '')}" title="${this._escapeAttribute(item.name || '')}">
-            <img src="${this._escapeAttribute(item.url || '')}" alt="${this._escapeAttribute(item.name || '')}">
-            <span>${this._escapeHtml(item.name || 'file')}</span>
-          </button>
-        `).join('');
+        preview.removeAttribute('hidden');
+        previewImg.setAttribute('src', value);
+        previewUrl.textContent = value;
       };
 
-      const loadItems = (query = '') => {
-        const endpoint = String(document.body.dataset.fileManagerListUrl || '').trim();
-        if (!endpoint) {
-          render([]);
-          return;
-        }
-
-        const params = query ? { q: query } : {};
-        const request = window.HApi && typeof window.HApi.get === 'function'
-          ? window.HApi.get(endpoint, params)
-          : $.ajax({ url: endpoint, method: 'GET', data: params });
-
-        request.done((payload) => {
-          render(Array.isArray(payload.items) ? payload.items : []);
-        }).fail(() => {
-          render([]);
-          if (window.HToast) window.HToast.error('Unable to load media files.');
-        });
-      };
-
-      toggle.addEventListener('click', () => {
-        const isHidden = panel.hasAttribute('hidden');
-        if (isHidden) {
-          panel.removeAttribute('hidden');
-          loadItems('');
-        } else {
-          panel.setAttribute('hidden', 'hidden');
-        }
+      srcInput.addEventListener('input', () => {
+        setPreview(srcInput.value);
       });
+      setPreview(srcInput.value);
 
-      search.addEventListener('input', () => {
-        loadItems(String(search.value || '').trim());
-      });
-
-      grid.addEventListener('click', (event) => {
-        const pick = event.target.closest('.h-editor-fm-item[data-file-url]');
-        if (!pick) return;
-        const url = String(pick.getAttribute('data-file-url') || '');
-        if (!url) return;
-        srcInput.value = url;
-      });
-
-      uploadBtn.addEventListener('click', () => {
-        const endpoint = String(document.body.dataset.fileManagerUploadUrl || '').trim();
-        const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
-        if (!endpoint || !file) {
-          if (window.HToast) window.HToast.warning('Choose a file first.');
-          return;
-        }
-
-        const token = String((document.querySelector('meta[name="csrf-token"]') || {}).content || '');
-        const data = new FormData();
-        data.append('file', file);
-        data.append('folder', 'editor');
-
-        $.ajax({
-          url: endpoint,
-          method: 'POST',
-          data,
-          processData: false,
-          contentType: false,
-          headers: token ? { 'X-CSRF-TOKEN': token } : {},
-        }).done((payload) => {
-          const item = payload && payload.item ? payload.item : null;
-          if (item && item.url) {
-            srcInput.value = String(item.url);
+      if (pickButton) {
+        pickButton.addEventListener('click', () => {
+          if (!window.HMediaManager || typeof window.HMediaManager.open !== 'function') {
+            if (window.HToast) window.HToast.warning('Media manager is not available for this user.');
+            return;
           }
-          fileInput.value = '';
-          loadItems(String(search.value || '').trim());
-          if (window.HToast) window.HToast.success('File uploaded.');
-        }).fail((xhr) => {
-          const message = xhr && xhr.responseJSON && xhr.responseJSON.message
-            ? xhr.responseJSON.message
-            : 'Upload failed.';
-          if (window.HToast) window.HToast.error(message);
+          if (!document.getElementById('h-media-manager-modal')) {
+            if (window.HToast) window.HToast.warning('Media manager modal is not available on this page.');
+            return;
+          }
+
+          window.HMediaManager.open({
+            targetInputId: '',
+            onSelect: (url) => {
+              const value = String(url || '').trim();
+              if (!value || !this._isSafeUrl(value)) {
+                if (window.HToast) window.HToast.warning('Selected media URL is not allowed.');
+                return;
+              }
+              srcInput.value = value;
+              srcInput.dispatchEvent(new Event('input', { bubbles: true }));
+              srcInput.dispatchEvent(new Event('change', { bubbles: true }));
+            },
+          });
         });
-      });
+      }
+
+      if (uploadInput) {
+        uploadInput.addEventListener('change', () => {
+          const endpoint = String(document.body.dataset.fileManagerUploadUrl || '').trim();
+          const file = uploadInput.files && uploadInput.files[0] ? uploadInput.files[0] : null;
+          if (!file) return;
+          if (!endpoint) {
+            if (window.HToast) window.HToast.error('File manager upload endpoint is missing.');
+            uploadInput.value = '';
+            return;
+          }
+
+          const token = String((document.querySelector('meta[name="csrf-token"]') || {}).content || '');
+          const data = new FormData();
+          data.append('file', file);
+          data.append('folder', 'editor');
+
+          $.ajax({
+            url: endpoint,
+            method: 'POST',
+            data,
+            processData: false,
+            contentType: false,
+            headers: token ? { 'X-CSRF-TOKEN': token } : {},
+          }).done((payload) => {
+            const item = payload && payload.item ? payload.item : null;
+            if (item && item.url) {
+              srcInput.value = String(item.url);
+              srcInput.dispatchEvent(new Event('input', { bubbles: true }));
+              srcInput.dispatchEvent(new Event('change', { bubbles: true }));
+              if (window.HToast) window.HToast.success('Image uploaded.');
+            } else if (window.HToast) {
+              window.HToast.warning('Upload completed but URL is missing.');
+            }
+          }).fail((xhr) => {
+            const message = xhr && xhr.responseJSON && xhr.responseJSON.message
+              ? xhr.responseJSON.message
+              : 'Upload failed.';
+            if (window.HToast) window.HToast.error(message);
+          }).always(() => {
+            uploadInput.value = '';
+          });
+        });
+      }
     },
 
     _promptUrl(label = 'Enter URL') {

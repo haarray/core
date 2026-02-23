@@ -9,6 +9,7 @@ use App\Support\HealthCheckService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,29 @@ use Yajra\DataTables\Facades\DataTables;
 
 class UiOptionsController extends Controller
 {
+    public function setLocale(Request $request): RedirectResponse|JsonResponse
+    {
+        $validated = $request->validate([
+            'locale' => ['required', 'string', 'in:en,ne'],
+        ]);
+
+        $locale = strtolower((string) $validated['locale']);
+        $request->session()->put('haarray.locale', $locale);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'locale' => $locale,
+            ]);
+        }
+
+        $message = $locale === 'ne'
+            ? 'नेपाली भाषा मोड सक्रिय भयो।'
+            : 'English language mode enabled.';
+
+        return back()->with('success', $message);
+    }
+
     public function leads(Request $request): JsonResponse
     {
         $search = trim((string) $request->get('q', ''));
@@ -96,7 +120,7 @@ class UiOptionsController extends Controller
 
                 return !empty($channels) ? implode(', ', $channels) : 'None';
             })
-            ->editColumn('created_at', fn (User $user) => optional($user->created_at)->format('Y-m-d'))
+            ->editColumn('created_at', fn (User $user) => optional($user->created_at)?->toIso8601String() ?: '')
             ->addColumn('actions', function (User $user) use ($request) {
                 if (!$request->user() || !$request->user()->can('manage users')) {
                     return '<span class="h-muted">View only</span>';
@@ -204,7 +228,7 @@ class UiOptionsController extends Controller
             ->addColumn('status', function (UserActivity $activity) {
                 return (string) data_get($activity->meta, 'status', '-');
             })
-            ->editColumn('created_at', fn (UserActivity $activity) => optional($activity->created_at)->format('Y-m-d H:i:s'))
+            ->editColumn('created_at', fn (UserActivity $activity) => optional($activity->created_at)?->toIso8601String() ?: '')
             ->toJson();
     }
 
@@ -219,7 +243,7 @@ class UiOptionsController extends Controller
 
     public function hotReloadSignature(Request $request): JsonResponse
     {
-        if (!app()->environment('local') || !filter_var((string) env('HAARRAY_HOT_RELOAD', 'true'), FILTER_VALIDATE_BOOL)) {
+        if (!app()->environment('local') || !(bool) config('haarray.ops.hot_reload', false)) {
             abort(404);
         }
 
@@ -233,6 +257,67 @@ class UiOptionsController extends Controller
         return response()->json([
             'signature' => $signature,
             'generated_at' => now()->toDateTimeString(),
+        ]);
+    }
+
+    public function hotReloadStream(Request $request): StreamedResponse
+    {
+        if (!app()->environment('local') || !(bool) config('haarray.ops.hot_reload', false)) {
+            abort(404);
+        }
+
+        $initialSignature = trim((string) $request->query('sig', ''));
+        $maxSeconds = max(15, min((int) config('haarray.ops.hot_reload_stream_max_seconds', 55), 240));
+        $sleepMs = max(300, min((int) config('haarray.ops.hot_reload_stream_sleep_ms', 1000), 5000));
+
+        return response()->stream(function () use ($initialSignature, $maxSeconds, $sleepMs): void {
+            if (function_exists('ignore_user_abort')) {
+                @ignore_user_abort(true);
+            }
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(0);
+            }
+
+            while (ob_get_level() > 0) {
+                @ob_end_flush();
+            }
+
+            $lastSignature = $initialSignature;
+            $startedAt = microtime(true);
+            $sentAnySignature = false;
+
+            while (!connection_aborted() && (microtime(true) - $startedAt) < $maxSeconds) {
+                $signature = $this->computeHotReloadSignature();
+
+                if ($signature !== '' && ($signature !== $lastSignature || !$sentAnySignature)) {
+                    $payload = [
+                        'signature' => $signature,
+                        'generated_at' => now()->toDateTimeString(),
+                        'initial' => !$sentAnySignature,
+                    ];
+
+                    echo "event: signature\n";
+                    echo 'data: ' . json_encode($payload, JSON_UNESCAPED_SLASHES) . "\n\n";
+
+                    $lastSignature = $signature;
+                    $sentAnySignature = true;
+                } else {
+                    echo ": keepalive\n\n";
+                }
+
+                @flush();
+                usleep($sleepMs * 1000);
+            }
+
+            echo "event: end\n";
+            echo "data: {}\n\n";
+            @flush();
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 

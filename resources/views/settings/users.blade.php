@@ -1,48 +1,57 @@
 @extends('layouts.app')
 
-@section('title', 'Users')
-@section('page_title', 'Users')
+@section('title', app()->getLocale() === 'ne' ? 'प्रयोगकर्ता' : 'Users')
+@section('page_title', app()->getLocale() === 'ne' ? 'प्रयोगकर्ता' : 'Users')
 
 @section('topbar_extra')
   <span class="h-live-badge">
     <i class="fa-solid fa-users"></i>
-    User Management
+    {{ app()->getLocale() === 'ne' ? 'प्रयोगकर्ता व्यवस्थापन' : 'User Management' }}
   </span>
 @endsection
 
 @section('content')
+@php
+  $uiLocale = app()->getLocale() === 'ne' ? 'ne' : 'en';
+  $hlText = static function (string $en, string $ne = '') use ($uiLocale): string {
+    if ($uiLocale === 'ne' && $ne !== '') {
+      return $ne;
+    }
+    return $en;
+  };
+@endphp
 <div class="hl-docs hl-settings">
   <div class="doc-head">
     <div>
-      <div class="doc-title">Users</div>
-      <div class="doc-sub">Server-side DataTable with focused modals: profile, notification channels, and role/permission access.</div>
+      <div class="doc-title">{{ $hlText('Users', 'प्रयोगकर्ता') }}</div>
+      <div class="doc-sub">{{ $hlText('Server-side DataTable with focused modals: profile, notification channels, and role/permission access.', 'सर्भर-साइड डाटाटेबल: प्रोफाइल, सूचना च्यानल, र भूमिका/अनुमति पहुँच।') }}</div>
     </div>
     @if($canManageUsers)
-      <span class="h-pill gold">Manage Users</span>
+      <span class="h-pill gold">{{ $hlText('Manage Users', 'प्रयोगकर्ता व्यवस्थापन') }}</span>
     @else
-      <span class="h-pill teal">Read Only</span>
+      <span class="h-pill teal">{{ $hlText('Read Only', 'हेर्ने मात्र') }}</span>
     @endif
   </div>
 
   <div class="h-card-soft mb-3">
     <div class="head h-split">
       <div>
-        <div style="font-family:var(--fd);font-size:16px;font-weight:700;">User Directory</div>
-        <div class="h-muted" style="font-size:13px;">Actions: Edit profile, manage notifications, manage role/access, delete.</div>
+        <div style="font-family:var(--fd);font-size:16px;font-weight:700;">{{ $hlText('User Directory', 'प्रयोगकर्ता सूची') }}</div>
+        <div class="h-muted" style="font-size:13px;">{{ $hlText('Actions: Edit profile, manage notifications, manage role/access, delete.', 'कार्यहरू: प्रोफाइल सम्पादन, सूचना व्यवस्थापन, भूमिका/पहुँच व्यवस्थापन, मेटाउने।') }}</div>
       </div>
       @if($canManageUsers)
         <div class="d-flex gap-2 flex-wrap justify-content-end">
           <button type="button" class="btn btn-primary btn-sm" id="h-user-create-open">
             <i class="fa-solid fa-user-plus me-2"></i>
-            Create User
+            {{ $hlText('Create User', 'प्रयोगकर्ता थप्नुहोस्') }}
           </button>
           <button type="button" class="btn btn-outline-secondary btn-sm" data-modal-open="settings-users-import-modal">
             <i class="fa-solid fa-file-import me-2"></i>
-            Import
+            {{ $hlText('Import', 'इम्पोर्ट') }}
           </button>
           <a href="{{ route('settings.users.export') }}" class="btn btn-outline-secondary btn-sm">
             <i class="fa-solid fa-file-export me-2"></i>
-            Export
+            {{ $hlText('Export', 'एक्सपोर्ट') }}
           </a>
         </div>
       @endif
@@ -58,17 +67,17 @@
           data-length-menu="10,20,50,100"
           data-order-col="0"
           data-order-dir="desc"
-          data-empty-text="Empty"
+          data-empty-text="{{ $hlText('Empty', 'खाली') }}"
         >
           <thead>
             <tr>
               <th data-col="id">ID</th>
-              <th data-col="name">Name</th>
-              <th data-col="email">Email</th>
-              <th data-col="role">Role</th>
-              <th data-col="channels">Channels</th>
-              <th data-col="created_at">Joined</th>
-              <th data-col="actions" class="h-col-actions" data-orderable="false" data-searchable="false">Actions</th>
+              <th data-col="name">{{ $hlText('Name', 'नाम') }}</th>
+              <th data-col="email">{{ $hlText('Email', 'इमेल') }}</th>
+              <th data-col="role">{{ $hlText('Role', 'भूमिका') }}</th>
+              <th data-col="channels">{{ $hlText('Channels', 'च्यानल') }}</th>
+              <th data-col="created_at" data-date="date">{{ $hlText('Joined', 'सामेल मिति') }}</th>
+              <th data-col="actions" class="h-col-actions" data-orderable="false" data-searchable="false">{{ $hlText('Actions', 'कार्य') }}</th>
             </tr>
           </thead>
           <tbody></tbody>

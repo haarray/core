@@ -1,8 +1,55 @@
 {{-- Canonical application layout --}}
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+@php
+  $uiLocale = app()->getLocale();
+  if (!in_array($uiLocale, ['en', 'ne'], true)) {
+    $uiLocale = 'en';
+  }
+  $nextUiLocale = $uiLocale === 'ne' ? 'en' : 'ne';
+  $hlText = static function (string $en, string $ne = '') use ($uiLocale): string {
+    if ($uiLocale === 'ne' && $ne !== '') {
+      return $ne;
+    }
+
+    return $en;
+  };
+  $hMenuLabel = static function (string $label) use ($uiLocale): string {
+    if ($uiLocale !== 'ne') {
+      return $label;
+    }
+
+    $map = [
+      'Control Hub' => 'कन्ट्रोल हब',
+      'Users' => 'प्रयोगकर्ता',
+      'Roles & Access' => 'भूमिका र पहुँच',
+      'Global Search' => 'ग्लोबल खोज',
+      'Media Manager' => 'मिडिया म्यानेजर',
+      'App & Branding' => 'एप र ब्रान्डिङ',
+      'Activity' => 'गतिविधि',
+      'Security' => 'सुरक्षा',
+      'Notifications' => 'सूचनाहरू',
+      'System Config' => 'सिस्टम कन्फिग',
+      'Diagnostics' => 'डायग्नोस्टिक्स',
+      'Profile' => 'प्रोफाइल',
+    ];
+
+    return $map[$label] ?? $label;
+  };
+@endphp
+<html lang="{{ $uiLocale }}" data-theme="dark">
 <head>
   @php
+    $request = request();
+    $requestBaseUrl = trim((string) $request->getBaseUrl());
+    $requestAssetBase = rtrim(
+      $request->getSchemeAndHttpHost() . ($requestBaseUrl !== '' ? $requestBaseUrl : ''),
+      '/'
+    );
+    $hAsset = static function (string $path) use ($requestAssetBase): string {
+      $cleanPath = ltrim($path, '/');
+      return $requestAssetBase . '/' . $cleanPath;
+    };
+
     $uiBranding = \App\Support\AppSettings::uiBranding();
     $brandFavicon = \App\Support\AppSettings::resolveUiAsset((string) ($uiBranding['favicon_url'] ?? ''));
     $brandLogo = \App\Support\AppSettings::resolveUiAsset((string) ($uiBranding['logo_url'] ?? ''));
@@ -25,13 +72,27 @@
       $brandDisplayName = (string) config('app.name', 'HariLog');
     }
     $searchDebounceMs = max(80, min((int) \App\Support\AppSettings::get('search.debounce_ms', '180'), 1500));
-    $hotReloadEnabled = app()->environment('local') && filter_var((string) env('HAARRAY_HOT_RELOAD', 'true'), FILTER_VALIDATE_BOOL);
+    $hotReloadEnabled = app()->environment('local') && (bool) config('haarray.ops.hot_reload', false);
+    $notifyAutoPoll = (bool) config('haarray.realtime.auto_poll', false);
+    $haarrayCssVersion = (int) (file_exists(public_path('css/haarray.app.css')) ? (filemtime(public_path('css/haarray.app.css')) ?: time()) : time());
+    $haarrayJsVersion = (int) (file_exists(public_path('js/haarray.app.js')) ? (filemtime(public_path('js/haarray.app.js')) ?: time()) : time());
+    $haarrayNepaliDateVersion = (int) (file_exists(public_path('js/haarray.nepali-date.js')) ? (filemtime(public_path('js/haarray.nepali-date.js')) ?: time()) : $haarrayJsVersion);
+    $elfinderAssetVersion = (int) max(
+      (int) (file_exists(public_path('css/elfinder.jquery-ui.min.css')) ? (filemtime(public_path('css/elfinder.jquery-ui.min.css')) ?: 0) : 0),
+      (int) (file_exists(public_path('css/elfinder.min.css')) ? (filemtime(public_path('css/elfinder.min.css')) ?: 0) : 0),
+      (int) (file_exists(public_path('css/elfinder.theme.css')) ? (filemtime(public_path('css/elfinder.theme.css')) ?: 0) : 0),
+      (int) (file_exists(public_path('js/elfinder.jquery-ui.min.js')) ? (filemtime(public_path('js/elfinder.jquery-ui.min.js')) ?: 0) : 0),
+      (int) (file_exists(public_path('js/elfinder.min.js')) ? (filemtime(public_path('js/elfinder.min.js')) ?: 0) : 0)
+    );
+    if ($elfinderAssetVersion <= 0) {
+      $elfinderAssetVersion = time();
+    }
   @endphp
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>@yield('title', 'Dashboard') — {{ $brandDisplayName }}</title>
-  <link rel="icon" type="image/x-icon" href="{{ $brandFavicon !== '' ? $brandFavicon : asset('favicon.ico') }}">
+  <link rel="icon" type="image/x-icon" href="{{ $brandFavicon !== '' ? $brandFavicon : $hAsset('favicon.ico') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -40,7 +101,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css">
-  <link rel="stylesheet" href="{{ asset('css/haarray.app.css') }}">
+  <link rel="stylesheet" href="{{ $hAsset('css/haarray.app.css') }}?v={{ $haarrayCssVersion }}">
   <style>
     :root {
       --gold: {{ $themeColor }};
@@ -52,8 +113,8 @@
     <link rel="apple-touch-icon" href="{{ $brandAppIcon }}">
   @endif
   @if(config('haarray.enable_pwa'))
-    <link rel="manifest" href="{{ asset('manifest.json') }}">
-    <link rel="apple-touch-icon" href="{{ $brandAppIcon !== '' ? $brandAppIcon : asset('icons/pwa-192.png') }}">
+    <link rel="manifest" href="{{ $hAsset('manifest.json') }}">
+    <link rel="apple-touch-icon" href="{{ $brandAppIcon !== '' ? $brandAppIcon : $hAsset('icons/pwa-192.png') }}">
   @endif
   @yield('styles')
 </head>
@@ -61,11 +122,12 @@
   data-notifications-feed-url="{{ auth()->user()->can('view notifications') ? route('notifications.feed') : '' }}"
   data-notification-read-url-template="{{ auth()->user()->can('view notifications') ? route('notifications.read', ['id' => '__ID__']) : '' }}"
   data-notifications-poll-seconds="{{ (int) config('haarray.realtime.poll_seconds', 20) }}"
+  data-notifications-auto-poll="{{ $notifyAutoPoll ? '1' : '0' }}"
   data-browser-notify-enabled="{{ auth()->user()->browser_notifications_enabled ? '1' : '0' }}"
   data-pwa-enabled="{{ config('haarray.enable_pwa') ? '1' : '0' }}"
-  data-sw-url="{{ asset('sw.js') }}"
-  data-icon-sprite-url="{{ asset('icons/icons.svg') }}"
-  data-favicon-url="{{ $brandFavicon !== '' ? $brandFavicon : asset('favicon.ico') }}"
+  data-sw-url="{{ $hAsset('sw.js') }}"
+  data-icon-sprite-url="{{ $hAsset('icons/icons.svg') }}"
+  data-favicon-url="{{ $brandFavicon !== '' ? $brandFavicon : $hAsset('favicon.ico') }}"
   data-file-manager-list-url="{{ route('ui.filemanager.index') }}"
   data-file-manager-upload-url="{{ route('ui.filemanager.upload') }}"
   data-file-manager-delete-url="{{ route('ui.filemanager.delete') }}"
@@ -78,7 +140,13 @@
   data-notification-read-all-url="{{ auth()->user()->can('view notifications') ? route('notifications.read_all') : '' }}"
   data-notification-sound-url="{{ $brandNotificationSound }}"
   data-hot-reload-enabled="{{ $hotReloadEnabled ? '1' : '0' }}"
-  data-hot-reload-url="{{ route('ui.hot_reload.signature') }}"
+  data-hot-reload-stream-url="{{ route('ui.hot_reload.stream') }}"
+  data-ui-locale="{{ $uiLocale }}"
+  data-elfinder-ui-css-url="{{ $hAsset('css/elfinder.jquery-ui.min.css') }}"
+  data-elfinder-ui-js-url="{{ $hAsset('js/elfinder.jquery-ui.min.js') }}"
+  data-elfinder-css-url="{{ $hAsset('css/elfinder.min.css') }}"
+  data-elfinder-theme-css-url="{{ $hAsset('css/elfinder.theme.css') }}"
+  data-elfinder-js-url="{{ $hAsset('js/elfinder.min.js') }}"
 >
 
 {{-- Sidebar overlay (mobile) --}}
@@ -110,54 +178,54 @@
 
   <div class="h-sidebar-nav" id="h-sidebar-nav">
     {{-- Nav --}}
-    <div class="h-nav-sec">Finance</div>
+    <div class="h-nav-sec">{{ $hlText('Finance', 'वित्त') }}</div>
     @can('view dashboard')
       <a data-spa href="{{ route('dashboard') }}" class="h-nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
         <i class="h-nav-icon fa-solid fa-gauge-high fa-fw"></i>
-        Dashboard
+        {{ $hlText('Dashboard', 'ड्यासबोर्ड') }}
       </a>
     @endcan
     <a href="#" class="h-nav-item" onclick="HToast.info('Coming soon!');return false;">
       <i class="h-nav-icon fa-solid fa-money-bill-transfer fa-fw"></i>
-      Transactions
+      {{ $hlText('Transactions', 'लेनदेन') }}
       <span class="h-nav-badge">Soon</span>
     </a>
     <a href="#" class="h-nav-item" onclick="HToast.info('Coming soon!');return false;">
       <i class="h-nav-icon fa-solid fa-building-columns fa-fw"></i>
-      Accounts
+      {{ $hlText('Accounts', 'खाताहरू') }}
     </a>
     <a href="#" class="h-nav-item" onclick="HToast.info('Coming soon!');return false;">
       <i class="h-nav-icon fa-solid fa-chart-line fa-fw"></i>
-      Portfolio
+      {{ $hlText('Portfolio', 'पोर्टफोलियो') }}
     </a>
 
-    <div class="h-nav-sec">Market</div>
+    <div class="h-nav-sec">{{ $hlText('Market', 'बजार') }}</div>
     <a href="#" class="h-nav-item" onclick="HToast.info('Coming soon!');return false;">
       <i class="h-nav-icon fa-solid fa-clock fa-fw"></i>
-      IPO Tracker
+      {{ $hlText('IPO Tracker', 'आईपीओ ट्र्याकर') }}
       <span class="h-nav-badge teal">3</span>
     </a>
     <a href="#" class="h-nav-item" onclick="HToast.info('Coming soon!');return false;">
       <i class="h-nav-icon fa-solid fa-coins fa-fw"></i>
-      Gold & Forex
+      {{ $hlText('Gold & Forex', 'सुन र फरेक्स') }}
     </a>
 
-    <div class="h-nav-sec">Intelligence</div>
+    <div class="h-nav-sec">{{ $hlText('Intelligence', 'विश्लेषण') }}</div>
     <a href="#" class="h-nav-item" onclick="HToast.info('Coming soon!');return false;">
       <i class="h-nav-icon fa-solid fa-lightbulb fa-fw"></i>
-      Suggestions
+      {{ $hlText('Suggestions', 'सुझावहरू') }}
       <span class="h-nav-badge">2</span>
     </a>
     <a href="#" class="h-nav-item" onclick="HToast.info('Coming soon!');return false;">
       <i class="h-nav-icon fa-brands fa-telegram fa-fw"></i>
-      Telegram Bot
+      {{ $hlText('Telegram Bot', 'टेलिग्राम बट') }}
     </a>
 
-    <div class="h-nav-sec">System</div>
+    <div class="h-nav-sec">{{ $hlText('System', 'सिस्टम') }}</div>
     @can('view docs')
       <a data-spa href="{{ route('docs.index') }}" class="h-nav-item {{ request()->routeIs('docs.*') ? 'active' : '' }}">
         <i class="h-nav-icon fa-solid fa-book-open fa-fw"></i>
-        Docs
+        {{ $hlText('Docs', 'डक्स') }}
       </a>
     @endcan
     @if(auth()->user()->can('view settings'))
@@ -177,7 +245,7 @@
         >
           <span class="h-row">
             <i class="h-nav-icon fa-solid fa-sliders fa-fw"></i>
-            Settings
+            {{ $hlText('Settings', 'सेटिङ्स') }}
           </span>
           <i class="fa-solid fa-chevron-right h-nav-caret"></i>
         </button>
@@ -218,7 +286,7 @@
               class="h-nav-sub-item {{ $isActive ? 'active' : '' }}"
             >
               <i class="{{ $item['icon'] ?? 'fa-solid fa-circle' }}"></i>
-              {{ $item['label'] ?? 'Menu' }}
+              {{ $hMenuLabel((string) ($item['label'] ?? 'Menu')) }}
             </a>
           @endforeach
         </div>
@@ -245,36 +313,50 @@
 
   {{-- Topbar --}}
   <header class="h-topbar">
-    <span class="h-page-title-bar" id="h-page-title">@yield('page_title', 'Dashboard')</span>
-    <span id="h-clock" style="font-family:var(--fm);font-size:11px;color:var(--t3);"></span>
+    <span class="h-page-title-bar" id="h-page-title">@yield('page_title', $hlText('Dashboard', 'ड्यासबोर्ड'))</span>
+    <span id="h-clock" style="font-family:var(--fm);font-size:11px;color:var(--t3);">{{ \App\Support\UiDate::dual(now(), true, $uiLocale) }}</span>
     <div class="h-topbar-right">
       <div id="h-topbar-extra">
         @yield('topbar_extra')
       </div>
-      <button class="h-icon-btn" type="button" title="Search (⌘K / Ctrl+K)" data-global-search-open aria-label="Global Search">
+      @if(\Illuminate\Support\Facades\Route::has('ui.locale.set'))
+        <form method="POST" action="{{ route('ui.locale.set') }}" class="h-locale-form">
+          @csrf
+          <input type="hidden" name="locale" value="{{ $nextUiLocale }}">
+          <button
+            class="h-icon-btn h-locale-toggle"
+            type="submit"
+            title="{{ $uiLocale === 'ne' ? 'Switch to English' : 'नेपालीमा बदल्नुहोस्' }}"
+            aria-label="{{ $uiLocale === 'ne' ? 'Switch to English' : 'Switch to Nepali' }}"
+          >
+            <span class="h-locale-pill">{{ $uiLocale === 'ne' ? 'EN' : 'ने' }}</span>
+          </button>
+        </form>
+      @endif
+      <button class="h-icon-btn" type="button" title="{{ $hlText('Search (⌘K / Ctrl+K)', 'खोज्नुहोस् (⌘K / Ctrl+K)') }}" data-global-search-open aria-label="{{ $hlText('Global Search', 'ग्लोबल खोज') }}">
         <i class="fa-solid fa-magnifying-glass"></i>
       </button>
       @can('view settings')
-        <button class="h-icon-btn" type="button" title="Media Library" data-media-manager-open aria-label="Media Library">
+        <button class="h-icon-btn" type="button" title="{{ $hlText('Media Library', 'मिडिया लाइब्रेरी') }}" data-media-manager-open aria-label="{{ $hlText('Media Library', 'मिडिया लाइब्रेरी') }}">
           <i class="fa-solid fa-photo-film"></i>
         </button>
       @endcan
       @if(config('haarray.enable_pwa'))
-        <button class="h-icon-btn" type="button" id="h-pwa-install" title="Install app" style="display:none;">
+        <button class="h-icon-btn" type="button" id="h-pwa-install" title="{{ $hlText('Install app', 'एप इन्स्टल गर्नुहोस्') }}" style="display:none;">
           <i class="fa-solid fa-download"></i>
         </button>
       @endif
       @can('view notifications')
-        <button class="h-icon-btn h-notif-toggle" type="button" title="Notifications" data-notif-toggle aria-label="Notifications">
+        <button class="h-icon-btn h-notif-toggle" type="button" title="{{ $hlText('Notifications', 'सूचनाहरू') }}" data-notif-toggle aria-label="{{ $hlText('Notifications', 'सूचनाहरू') }}">
           <i class="fa-solid fa-bell"></i>
           <span class="h-notif-dot is-hidden"></span>
         </button>
       @endcan
-      <button class="h-icon-btn" type="button" title="Debug Console" data-debug-toggle aria-label="Debug Console">
+      <button class="h-icon-btn" type="button" title="{{ $hlText('Debug Console', 'डिबग कन्सोल') }}" data-debug-toggle aria-label="{{ $hlText('Debug Console', 'डिबग कन्सोल') }}">
         <i class="fa-solid fa-bug"></i>
       </button>
       {{-- Theme toggle --}}
-      <button class="h-theme-toggle h-icon-btn" title="Toggle theme">
+      <button class="h-theme-toggle h-icon-btn" title="{{ $hlText('Toggle theme', 'थिम बदल्नुहोस्') }}">
         <span class="moon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></span>
         <span class="sun" style="display:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg></span>
       </button>
@@ -438,49 +520,32 @@
   </div>
 </div>
 
-{{-- Global media library modal --}}
-<div class="h-modal-overlay" id="h-media-manager-modal">
-  <div class="h-modal h-media-manager-modal">
-    <div class="h-modal-head">
-      <div class="h-modal-title">Media Library</div>
-      <button class="h-modal-close">×</button>
-    </div>
-    <div class="h-modal-body">
-      <div class="h-media-manager-head">
-        <input type="text" class="form-control form-control-sm" id="h-media-manager-search" placeholder="Search media files...">
-        <div class="h-media-upload-row">
-          <input type="text" class="form-control form-control-sm" id="h-media-manager-folder" placeholder="Folder (optional)">
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="h-media-manager-create-folder">
-            <i class="fa-solid fa-folder-plus me-1"></i>
-            Folder
-          </button>
-        </div>
-        <div class="h-media-upload-row">
-          <input type="file" class="d-none" id="h-media-manager-file" accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.ico,.mp3,.wav,.ogg,.m4a,.aac,.flac,image/*,audio/*">
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="h-media-manager-pick">
-            <i class="fa-solid fa-paperclip me-1"></i>
-            Choose File
-          </button>
-          <span class="h-media-upload-file" id="h-media-manager-file-name">No file selected</span>
-        </div>
-        <div class="h-row" style="gap:8px;justify-content:flex-end;">
-          <a href="{{ route('ui.filemanager.export') }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" id="h-media-manager-export">
-            <i class="fa-solid fa-file-csv me-1"></i>
-            CSV
-          </a>
-          <button type="button" class="btn btn-sm btn-primary" id="h-media-manager-upload">
-            <i class="fa-solid fa-upload me-1"></i>
-            Upload
-          </button>
-        </div>
+@can('view settings')
+  {{-- Global media library modal --}}
+  <div class="h-modal-overlay" id="h-media-manager-modal">
+    <div class="h-modal h-media-manager-modal">
+      <div class="h-modal-head">
+        <div class="h-modal-title">Media Library</div>
+        <button class="h-modal-close">×</button>
       </div>
-      <div class="h-note mt-2 mb-2" id="h-media-manager-target-note" hidden></div>
-      <div class="h-media-manager-grid" id="h-media-manager-grid">
-        <div class="h-notif-empty"><i class="fa-regular fa-folder-open"></i><span>No media loaded.</span></div>
+      <div class="h-modal-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <div class="h-note mb-0" id="h-media-manager-target-note" hidden></div>
+          <a data-spa href="{{ route('settings.media.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fa-solid fa-up-right-from-square me-1"></i>
+            Open Full Manager
+          </a>
+        </div>
+        <div class="h-elfinder-shell h-elfinder-shell-modal">
+          <div id="h-media-manager-elfinder"
+            data-connector-url="{{ route('settings.media.connector') }}"
+            data-read-only="{{ auth()->user()->can('manage settings') ? '0' : '1' }}"
+            data-mode="picker"></div>
+        </div>
       </div>
     </div>
   </div>
-</div>
+@endcan
 
 {{-- App modals --}}
 <div id="h-page-modals">
@@ -501,7 +566,8 @@
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
-<script src="{{ asset('js/haarray.app.js') }}"></script>
+<script src="{{ $hAsset('js/haarray.nepali-date.js') }}?v={{ $haarrayNepaliDateVersion }}"></script>
+<script src="{{ $hAsset('js/haarray.app.js') }}?v={{ $haarrayJsVersion }}"></script>
 <div id="h-page-scripts">
   @yield('scripts')
 </div>

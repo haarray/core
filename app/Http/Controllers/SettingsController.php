@@ -641,6 +641,7 @@ class SettingsController extends Controller
             'ui_brand_subtitle' => ['nullable', 'string', 'max:120'],
             'ui_brand_mark' => ['required', 'string', 'max:8'],
             'ui_theme_color' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'ui_locale_default' => ['required', Rule::in(['en', 'ne'])],
             'ui_logo_url' => ['nullable', 'string', 'max:2048'],
             'ui_favicon_url' => ['nullable', 'string', 'max:2048'],
             'ui_app_icon_url' => ['nullable', 'string', 'max:2048'],
@@ -657,11 +658,14 @@ class SettingsController extends Controller
             'ui.brand_subtitle' => trim((string) ($validated['ui_brand_subtitle'] ?? '')),
             'ui.brand_mark' => trim((string) $validated['ui_brand_mark']),
             'ui.theme_color' => strtolower((string) $validated['ui_theme_color']),
+            'ui.locale' => strtolower((string) $validated['ui_locale_default']),
             'ui.logo_url' => $logoUrl,
             'ui.favicon_url' => $faviconUrl,
             'ui.app_icon_url' => $appIconUrl,
             'ui.notification_sound_url' => $notificationSoundUrl,
         ]);
+
+        $request->session()->put('haarray.locale', strtolower((string) $validated['ui_locale_default']));
 
         return back()->with('success', 'Branding and asset settings updated successfully.');
     }

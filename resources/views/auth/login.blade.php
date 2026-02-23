@@ -1,8 +1,16 @@
 {{-- FILE: resources/views/auth/login.blade.php --}}
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="{{ app()->getLocale() }}" data-theme="dark">
 <head>
   @php
+    $uiLocale = app()->getLocale() === 'ne' ? 'ne' : 'en';
+    $nextUiLocale = $uiLocale === 'ne' ? 'en' : 'ne';
+    $hlText = static function (string $en, string $ne = '') use ($uiLocale): string {
+      if ($uiLocale === 'ne' && $ne !== '') {
+        return $ne;
+      }
+      return $en;
+    };
     $uiBranding = \App\Support\AppSettings::uiBranding();
     $brandDisplayName = trim((string) ($uiBranding['display_name'] ?? config('app.name', 'HariLog')));
     $brandMark = trim((string) ($uiBranding['brand_mark'] ?? config('haarray.app_initial', 'H')));
@@ -17,7 +25,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Sign In — {{ $brandDisplayName }}</title>
+  <title>{{ $hlText('Sign In', 'लगइन') }} — {{ $brandDisplayName }}</title>
   <link rel="icon" type="image/x-icon" href="{{ $brandFavicon !== '' ? $brandFavicon : asset('favicon.ico') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,11 +44,10 @@
     <div class="h-auth-art">
       <div class="h-auth-logo">{{ strtoupper(substr($brandMark, 0, 1)) }}</div>
       <div class="h-auth-headline">
-        Track every<br><span>paisa.</span><br>Build wealth.
+        {!! $hlText('Track every<br><span>paisa.</span><br>Build wealth.', 'हरेक<br><span>पैसा</span><br>नियन्त्रणमा राख्नुहोस्।') !!}
       </div>
       <p class="h-auth-desc">
-        Your personal financial intelligence system.
-        Log expenses, track investments, get IPO alerts — 100% free.
+        {{ $hlText('Your personal financial intelligence system. Log expenses, track investments, get IPO alerts — 100% free.', 'तपाईंको व्यक्तिगत वित्तीय प्रणाली। खर्च लेख्नुहोस्, लगानी ट्र्याक गर्नुहोस्, आईपीओ सूचना पाउनुहोस् — १००% निःशुल्क।') }}
       </p>
       <div class="h-auth-tribute">
         <strong>In memory of Hari Bahadur Bhujel</strong><br>
@@ -56,14 +63,21 @@
 
       {{-- Theme toggle --}}
       <div style="display:flex;justify-content:flex-end;margin-bottom:22px;">
+        <form method="POST" action="{{ route('ui.locale.set') }}" class="me-2">
+          @csrf
+          <input type="hidden" name="locale" value="{{ $nextUiLocale }}">
+          <button class="h-icon-btn h-locale-toggle" type="submit" title="{{ $uiLocale === 'ne' ? 'Switch to English' : 'नेपालीमा बदल्नुहोस्' }}">
+            <span class="h-locale-pill">{{ $uiLocale === 'ne' ? 'EN' : 'ने' }}</span>
+          </button>
+        </form>
         <button class="h-theme-toggle h-icon-btn" title="Toggle theme" type="button">
           <span class="moon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></span>
           <span class="sun" style="display:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg></span>
         </button>
       </div>
 
-      <div class="h-auth-title">Welcome back</div>
-      <div class="h-auth-sub">Sign in to your {{ $brandDisplayName }} account</div>
+      <div class="h-auth-title">{{ $hlText('Welcome back', 'फेरि स्वागत छ') }}</div>
+      <div class="h-auth-sub">{{ $hlText("Sign in to your {$brandDisplayName} account", "{$brandDisplayName} खातामा लगइन गर्नुहोस्") }}</div>
 
       {{-- Errors (server-side fallback) --}}
       @if($errors->any())
@@ -79,20 +93,20 @@
 
         {{-- Email --}}
         <div class="h-form-group">
-          <label class="h-label" for="email">Email</label>
+          <label class="h-label" for="email">{{ $hlText('Email', 'इमेल') }}</label>
           <div class="h-input-wrap">
             <span class="h-input-icon">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             </span>
             <input id="email" type="email" name="email" class="h-input has-icon @error('email') error @enderror"
-              value="{{ old('email') }}" placeholder="you@example.com" required autocomplete="email">
+              value="{{ old('email') }}" placeholder="{{ $hlText('you@example.com', 'you@example.com') }}" required autocomplete="email">
           </div>
         </div>
 
         {{-- Password --}}
         <div class="h-form-group">
           <div style="display:flex;justify-content:space-between;">
-            <label class="h-label" for="password">Password</label>
+            <label class="h-label" for="password">{{ $hlText('Password', 'पासवर्ड') }}</label>
           </div>
           <div class="h-input-wrap">
             <span class="h-input-icon">
@@ -110,25 +124,25 @@
         {{-- Remember --}}
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
           <input type="checkbox" id="remember" name="remember" style="accent-color:var(--gold);width:15px;height:15px;">
-          <label for="remember" style="font-size:13px;color:var(--t2);cursor:pointer;">Keep me signed in</label>
+          <label for="remember" style="font-size:13px;color:var(--t2);cursor:pointer;">{{ $hlText('Keep me signed in', 'मलाई लगइन राख्नुहोस्') }}</label>
         </div>
 
-        <button type="submit" class="h-btn primary full lg" id="login-btn" data-busy-text="Signing in…">
-          Sign In
+        <button type="submit" class="h-btn primary full lg" id="login-btn" data-busy-text="{{ $hlText('Signing in…', 'लगइन हुँदैछ…') }}">
+          {{ $hlText('Sign In', 'लगइन') }}
         </button>
 
       </form>
 
-      <div class="h-divider" style="margin:22px 0;">or</div>
+      <div class="h-divider" style="margin:22px 0;">{{ $hlText('or', 'वा') }}</div>
 
       <a href="{{ route('facebook.redirect') }}" class="btn btn-outline-secondary w-100 mb-3">
         <i class="fa-brands fa-facebook-f me-2"></i>
-        Continue with Facebook
+        {{ $hlText('Continue with Facebook', 'फेसबुकबाट जारी राख्नुहोस्') }}
       </a>
 
       <p style="text-align:center;font-size:13.5px;color:var(--t2);">
-        No account?
-        <a href="{{ route('register') }}" style="color:var(--gold);font-weight:600;" data-spa> Create one free</a>
+        {{ $hlText('No account?', 'खाता छैन?') }}
+        <a href="{{ route('register') }}" style="color:var(--gold);font-weight:600;" data-spa> {{ $hlText('Create one free', 'नयाँ खाता बनाउनुहोस्') }}</a>
       </p>
 
       <p style="text-align:center;margin-top:32px;font-family:var(--fm);font-size:9px;color:var(--t3);letter-spacing:1.5px;">
@@ -144,6 +158,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="{{ asset('js/haarray.nepali-date.js') }}"></script>
 <script src="{{ asset('js/haarray.app.js') }}"></script>
 
 {{-- Per-page: keep minimal client-side logic (busy state handled by haarray.js SPA) --}}
@@ -152,8 +167,8 @@
   // But keep this simple handler for non-SPA fallback submit UX (optional)
   $('#login-form').on('submit', function () {
     if (!$(this).is('[data-spa]')) {
-      $('#login-btn').prop('disabled', true).text('Signing in…');
-      setTimeout(() => $('#login-btn').prop('disabled', false).text('Sign In'), 8000);
+      $('#login-btn').prop('disabled', true).text(@json($hlText('Signing in…', 'लगइन हुँदैछ…')));
+      setTimeout(() => $('#login-btn').prop('disabled', false).text(@json($hlText('Sign In', 'लगइन'))), 8000);
     }
   });
 </script>

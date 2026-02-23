@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\Notifier;
+use App\Support\UiDate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,7 +40,7 @@ class NotificationController extends Controller
                     'url'      => $data['url'] ?? null,
                     'read'     => $notification->read_at !== null,
                     'time'     => optional($notification->created_at)->diffForHumans(),
-                    'datetime' => optional($notification->created_at)?->toDateTimeString(),
+                    'datetime' => UiDate::dual($notification->created_at, true, app()->getLocale()),
                 ];
             })
             ->values();

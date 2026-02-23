@@ -1,23 +1,40 @@
-{{-- FILE: resources/views/dashboard.blade.php --}}
 @extends('layouts.app')
 
-@section('title', 'Dashboard')
-@section('page_title', 'Dashboard')
+@section('title', app()->getLocale() === 'ne' ? 'ड्यासबोर्ड' : 'Dashboard')
+@section('page_title', app()->getLocale() === 'ne' ? 'ड्यासबोर्ड' : 'Dashboard')
 
 @section('topbar_extra')
   <div class="h-live-badge">
     <span class="h-pulse"></span>
-    Market Live
+    {{ app()->getLocale() === 'ne' ? 'बजार लाइभ' : 'Market Live' }}
   </div>
 @endsection
 
 @section('content')
+  @php
+    $uiLocale = app()->getLocale() === 'ne' ? 'ne' : 'en';
+    $hlText = static function (string $en, string $ne = '') use ($uiLocale): string {
+      if ($uiLocale === 'ne' && $ne !== '') {
+        return $ne;
+      }
+      return $en;
+    };
+    $hDualDate = static function ($value, bool $withTime = false) use ($uiLocale): string {
+      return \App\Support\UiDate::dual($value, $withTime, $uiLocale);
+    };
+    $hAdDate = static function ($value) use ($uiLocale): string {
+      return \App\Support\UiDate::formatAd($value, false, $uiLocale);
+    };
+    $hBsDate = static function ($value) use ($uiLocale): string {
+      return \App\Support\UiDate::formatBs($value, $uiLocale);
+    };
+  @endphp
 
   {{-- Market ticker --}}
   <div class="h-ticker">
-    <span class="h-ticker-lbl">Live ·</span>
+    <span class="h-ticker-lbl">{{ $hlText('Live ·', 'लाइभ ·') }}</span>
     <div class="h-ticker-item">
-      <span class="h-ticker-name">Gold/tola</span>
+      <span class="h-ticker-name">{{ $hlText('Gold/tola', 'सुन/तोला') }}</span>
       <span class="h-ticker-val">रू {{ number_format($market['gold']) }}</span>
       <span class="h-ticker-chg {{ $market['gold_up'] ? 'up' : 'dn' }}">{{ $market['gold_chg'] }}</span>
     </div>
@@ -29,7 +46,7 @@
     </div>
     <div class="h-ticker-div"></div>
     <div class="h-ticker-item">
-      <span class="h-ticker-name">USD/NPR</span>
+      <span class="h-ticker-name">{{ $hlText('USD/NPR', 'यूएसडी/एनपीआर') }}</span>
       <span class="h-ticker-val">{{ $market['usd_npr'] }}</span>
       <span class="h-ticker-chg {{ $market['usd_up'] ? 'up' : 'dn' }}">{{ $market['usd_chg'] }}</span>
     </div>
@@ -39,13 +56,13 @@
   <div class="h-page-header">
     <div>
       <div class="h-page-title">
-        Welcome back, {{ explode(' ', auth()->user()->name)[0] }} 👋
+        {{ $hlText('Welcome back,', 'फेरि स्वागत छ,') }} {{ explode(' ', auth()->user()->name)[0] }} 👋
       </div>
-      <div class="h-page-sub">Here's your financial snapshot</div>
+      <div class="h-page-sub">{{ $hlText("Here's your financial snapshot", 'यहाँ तपाईंको वित्तीय सारांश छ') }}</div>
     </div>
     <button class="h-btn primary" data-modal-open="quick-log-modal">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Quick Log
+      {{ $hlText('Quick Log', 'छिटो लग') }}
     </button>
   </div>
 
@@ -53,25 +70,25 @@
   <div class="h-grid-4">
     <div class="h-stat-card ga">
       <div class="h-stat-icon" style="background:rgba(47,125,246,.12)">💰</div>
-      <div class="h-stat-label">Net Worth</div>
+      <div class="h-stat-label">{{ $hlText('Net Worth', 'कुल सम्पत्ति') }}</div>
       <div class="h-stat-val gold">रू {{ number_format($stats['net_worth']) }}</div>
       <div class="h-stat-chg up">▲ 3.2% this month</div>
     </div>
     <div class="h-stat-card">
       <div class="h-stat-icon" style="background:rgba(248,113,113,.10)">📉</div>
-      <div class="h-stat-label">Spent This Month</div>
+      <div class="h-stat-label">{{ $hlText('Spent This Month', 'यो महिनाको खर्च') }}</div>
       <div class="h-stat-val">रू {{ number_format($stats['monthly_spend']) }}</div>
       <div class="h-stat-chg dn">▲ 8% vs last month</div>
     </div>
     <div class="h-stat-card">
       <div class="h-stat-icon" style="background:rgba(74,222,128,.10)">📈</div>
-      <div class="h-stat-label">Savings Rate</div>
+      <div class="h-stat-label">{{ $hlText('Savings Rate', 'बचत दर') }}</div>
       <div class="h-stat-val teal">{{ $stats['savings_rate'] }}%</div>
       <div class="h-stat-chg up">▲ Goal: 30% ✓</div>
     </div>
     <div class="h-stat-card">
       <div class="h-stat-icon" style="background:rgba(47,125,246,.10)">🏦</div>
-      <div class="h-stat-label">Idle Cash</div>
+      <div class="h-stat-label">{{ $hlText('Idle Cash', 'बाँकी नगद') }}</div>
       <div class="h-stat-val">रू {{ number_format($stats['idle_cash']) }}</div>
       <div class="h-stat-chg warn">⚡ 2 suggestions</div>
     </div>
@@ -104,7 +121,7 @@
     <div class="h-card">
       <div class="h-card-head">
         <div class="h-card-title">Monthly Overview</div>
-        <div class="h-card-meta">{{ strtoupper(now()->format('M Y')) }}</div>
+        <div class="h-card-meta">{{ $hDualDate(now(), false) }}</div>
       </div>
       <div class="h-card-body">
         <div class="h-bar-legend">
@@ -118,8 +135,8 @@
     {{-- Transactions --}}
     <div class="h-card">
       <div class="h-card-head">
-        <div class="h-card-title">Recent Transactions</div>
-        <span class="h-card-meta" style="color:var(--gold);cursor:pointer;" onclick="HToast.info('Transactions page coming soon!')">View all →</span>
+        <div class="h-card-title">{{ $hlText('Recent Transactions', 'हालका कारोबार') }}</div>
+        <span class="h-card-meta" style="color:var(--gold);cursor:pointer;" onclick="HToast.info({{ Js::from($hlText('Transactions page coming soon!', 'कारोबार पेज चाँडै आउँदैछ!')) }})">{{ $hlText('View all →', 'सबै हेर्नुहोस् →') }}</span>
       </div>
       <div style="padding:6px 0;">
         @foreach($transactions as $tx)
@@ -142,15 +159,15 @@
     {{-- IPO Tracker --}}
     <div class="h-card">
       <div class="h-card-head">
-        <div class="h-card-title">IPO Tracker</div>
-        <div class="h-card-meta">NEPAL · CDSC</div>
+        <div class="h-card-title">{{ $hlText('IPO Tracker', 'आईपीओ ट्र्याकर') }}</div>
+        <div class="h-card-meta">{{ $hlText('NEPAL · CDSC', 'नेपाल · सीडीएससी') }}</div>
       </div>
       <div class="h-card-body">
         @foreach($ipos as $ipo)
         <div class="h-ipo-item">
           <div class="h-ipo-name">{{ $ipo['name'] }}</div>
           <div class="h-ipo-row">
-            <span class="h-ipo-dates">{{ $ipo['dates'] }}</span>
+            <span class="h-ipo-dates">{{ $hAdDate($ipo['open_date']) }} — {{ $hAdDate($ipo['close_date']) }}</span>
             <span class="h-badge {{ $ipo['status'] === 'open' ? 'green' : 'gold' }}">
               {{ strtoupper($ipo['status']) }}
             </span>
@@ -158,12 +175,15 @@
           <div style="font-family:var(--fm);font-size:10px;color:var(--t3);">
             रू {{ $ipo['unit'] }}/unit · Min {{ $ipo['min'] }} units · रू {{ number_format($ipo['unit'] * $ipo['min']) }}
           </div>
+          <div style="font-family:var(--fm);font-size:10px;color:var(--t3);margin-top:4px;">
+            {{ $hBsDate($ipo['open_date']) }} — {{ $hBsDate($ipo['close_date']) }}
+          </div>
         </div>
         @endforeach
 
         {{-- Recommendation box --}}
         <div style="margin-top:14px;padding:11px 13px;background:rgba(47,125,246,.06);border:1px solid rgba(47,125,246,.20);border-radius:10px;">
-          <div style="font-family:var(--fm);font-size:9.5px;color:var(--gold);letter-spacing:1px;margin-bottom:4px;">⚡ AI RECOMMENDATION</div>
+          <div style="font-family:var(--fm);font-size:9.5px;color:var(--gold);letter-spacing:1px;margin-bottom:4px;">⚡ {{ $hlText('AI RECOMMENDATION', 'एआई सुझाव') }}</div>
           <div style="font-size:12px;color:var(--t2);line-height:1.6;">Apply for Citizens Bank IPO with your idle cash. Closes in 2 days.</div>
         </div>
       </div>
@@ -238,6 +258,11 @@
 @section('scripts')
 <script>
 $(function () {
+  const uiLocale = @json($uiLocale === 'ne' ? 'ne-NP' : 'en-IN');
+  const incomeLabel = @json($hlText('Income', 'आम्दानी'));
+  const expenseLabel = @json($hlText('Expense', 'खर्च'));
+  const enterAmountText = @json($hlText('Enter an amount first.', 'पहिले रकम प्रविष्ट गर्नुहोस्।'));
+  const loggedText = @json($hlText('Logged', 'लग गरियो'));
 
   // ── Bar chart ────────────────────────────────────────
   const chartData = {
@@ -255,8 +280,8 @@ $(function () {
     const expH = Math.round((chartData.expense[i] / maxVal) * 100);
     $bars.append(`
       <div class="h-bar-col">
-        <div class="h-bar inc" style="height:${incH}%" title="Income: रू ${chartData.income[i].toLocaleString('en-IN')}"></div>
-        <div class="h-bar exp" style="height:${expH}%" title="Expense: रू ${chartData.expense[i].toLocaleString('en-IN')}"></div>
+        <div class="h-bar inc" style="height:${incH}%" title="${incomeLabel}: रू ${chartData.income[i].toLocaleString(uiLocale)}"></div>
+        <div class="h-bar exp" style="height:${expH}%" title="${expenseLabel}: रू ${chartData.expense[i].toLocaleString(uiLocale)}"></div>
         <div class="h-bar-lbl">${lbl}</div>
       </div>
     `);
@@ -286,13 +311,13 @@ $(function () {
   // ── Quick log submit ──────────────────────────────────
   $('#ql-submit').off('click.hDashboardSubmit').on('click.hDashboardSubmit', function () {
     const amt = parseFloat($('#ql-amount').val());
-    if (!amt || amt <= 0) { HToast.warning('Enter an amount first.'); return; }
+    if (!amt || amt <= 0) { HToast.warning(enterAmountText); return; }
 
     // For now, just show a toast (replace with AJAX call when Transactions module is built)
     const cat  = $('.cat-chip.gold').data('cat') || 'other';
     const note = $('#ql-note').val();
     HModal.closeAll();
-    HToast.success(`Logged: रू ${amt.toLocaleString('en-IN')} on ${cat}${note ? ' — ' + note : ''}`);
+    HToast.success(`${loggedText}: रू ${amt.toLocaleString(uiLocale)} on ${cat}${note ? ' — ' + note : ''}`);
     $('#ql-amount').val('');
     $('#ql-note').val('');
   });

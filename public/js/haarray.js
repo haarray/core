@@ -682,52 +682,90 @@
 
   /* ── DEV HOT RELOAD ───────────────────────────────── */
   const HHotReload = {
-    _timer: null,
+    _source: null,
     _signature: '',
-    _endpoint: '',
+    _streamEndpoint: '',
 
     init() {
       const enabled = Number($('body').data('hotReloadEnabled') || 0) === 1;
-      this._endpoint = String($('body').data('hotReloadUrl') || '').trim();
+      this._streamEndpoint = String($('body').data('hotReloadStreamUrl') || '').trim();
 
-      if (!enabled || !this._endpoint) {
+      if (!enabled || !this._streamEndpoint || typeof window.EventSource !== 'function') {
         return;
       }
 
-      this.poll();
-      this._timer = window.setInterval(() => this.poll(), 2500);
+      this.connect();
 
       document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) this.poll();
+        if (document.hidden) {
+          this.close();
+          return;
+        }
+        this.connect(true);
+      });
+
+      window.addEventListener('beforeunload', () => this.close());
+    },
+
+    connect(force = false) {
+      if (
+        !force &&
+        this._source &&
+        this._source.readyState !== window.EventSource.CLOSED
+      ) {
+        return;
+      }
+
+      this.close();
+
+      const endpoint = this._streamUrl();
+      if (!endpoint) return;
+
+      try {
+        this._source = new window.EventSource(endpoint, { withCredentials: true });
+      } catch (error) {
+        this._source = null;
+        return;
+      }
+
+      this._source.addEventListener('signature', (event) => {
+        const payload = this._parsePayload(event && event.data ? event.data : '');
+        const nextSignature = String(payload && payload.signature ? payload.signature : '').trim();
+        if (!nextSignature) return;
+
+        if (this._signature && this._signature !== nextSignature) {
+          window.location.reload();
+          return;
+        }
+
+        this._signature = nextSignature;
+      });
+
+      this._source.addEventListener('error', () => {
+        // EventSource reconnects automatically. Keep silent.
       });
     },
 
-    poll() {
-      if (!this._endpoint || document.hidden) return;
+    close() {
+      if (!this._source) return;
+      this._source.close();
+      this._source = null;
+    },
 
-      $.ajax({
-        url: this._endpoint,
-        method: 'GET',
-        dataType: 'json',
-        data: { sig: this._signature },
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        global: false,
-      })
-        .done((payload, _status, xhr) => {
-          if (xhr && Number(xhr.status) === 204) return;
-          const nextSignature = String(payload && payload.signature ? payload.signature : '').trim();
-          if (!nextSignature) return;
+    _streamUrl() {
+      const endpoint = String(this._streamEndpoint || '').trim();
+      if (!endpoint) return '';
+      if (!this._signature) return endpoint;
+      const joiner = endpoint.includes('?') ? '&' : '?';
+      return endpoint + joiner + 'sig=' + encodeURIComponent(this._signature);
+    },
 
-          if (this._signature && this._signature !== nextSignature) {
-            window.location.reload();
-            return;
-          }
-
-          this._signature = nextSignature;
-        })
-        .fail(() => {
-          // Keep hot reload silent; it is optional and local-only.
-        });
+    _parsePayload(raw) {
+      try {
+        return JSON.parse(String(raw || '{}'));
+      } catch (error) {
+        return {};
+      }
     },
   };
 
@@ -1302,16 +1340,32 @@
   function updateClock() {
     const $clock = $('#h-live-clock,#h-clock');
     if (!$clock.length) return;
+    const userLocale = String(document.body?.dataset?.uiLocale || 'en').toLowerCase() === 'ne' ? 'ne' : 'en';
+    const now = new Date();
+    if (window.HNepaliDate && typeof window.HNepaliDate.dual === 'function') {
+      $clock.text(window.HNepaliDate.dual(now, { locale: userLocale, withTime: true }));
+      return;
+    }
 
-    $clock.text(
-      new Date().toLocaleString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    );
+    const english = now.toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Kathmandu',
+    });
+    const nepali = now.toLocaleString('ne-NP', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kathmandu',
+    });
+
+    $clock.text(userLocale === 'ne' ? (nepali + ' | ' + english) : (english + ' | ' + nepali));
   }
 
   /* ── AJAX BASE CONFIG ─────────────────────────────────── */
@@ -1332,7 +1386,8 @@
   const HUtils = {
     formatNPR(numberValue) {
       const parsed = typeof numberValue === 'number' ? numberValue : Number(numberValue) || 0;
-      return 'रू ' + parsed.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const userLocale = String(document.body?.dataset?.uiLocale || 'en').toLowerCase() === 'ne' ? 'ne-NP' : 'en-IN';
+      return 'रू ' + parsed.toLocaleString(userLocale, { minimumFractionDigits: 2 });
     },
 
     htmlToDoc(html) {
@@ -1775,6 +1830,8 @@
         'themeColor',
         'notificationReadAllUrl',
         'notificationSoundUrl',
+        'uiLocale',
+        'hotReloadStreamUrl',
       ];
 
       keys.forEach((key) => {

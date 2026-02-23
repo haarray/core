@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MediaManagerController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UiOptionsController;
@@ -18,6 +19,7 @@ Route::get('/auth/facebook/callback', [AuthController::class, 'facebookCallback'
 Route::get('/2fa', [AuthController::class, 'showTwoFactor'])->name('2fa.form');
 Route::post('/2fa/verify', [AuthController::class, 'verifyTwoFactor'])->name('2fa.verify');
 Route::post('/2fa/resend', [AuthController::class, 'resendTwoFactor'])->name('2fa.resend');
+Route::post('/ui/locale', [UiOptionsController::class, 'setLocale'])->name('ui.locale.set');
 
 // ── Protected routes ──────────────────────────────────────
 Route::middleware('auth')->group(function () {
@@ -44,6 +46,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/media', [SettingsController::class, 'media'])
         ->middleware('permission:view settings')
         ->name('settings.media.index');
+
+    Route::match(['GET', 'POST'], '/settings/media/connector', [MediaManagerController::class, 'connector'])
+        ->middleware('permission:view settings')
+        ->name('settings.media.connector');
 
     Route::get('/settings/rbac', [SettingsController::class, 'rbac'])
         ->middleware('permission:manage settings')
@@ -205,6 +211,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/ui/hot-reload/signature', [UiOptionsController::class, 'hotReloadSignature'])
         ->name('ui.hot_reload.signature');
+    Route::get('/ui/hot-reload/stream', [UiOptionsController::class, 'hotReloadStream'])
+        ->name('ui.hot_reload.stream');
 
     Route::get('/ui/datatables/users', [UiOptionsController::class, 'usersTable'])
         ->middleware('permission:view users')

@@ -4,6 +4,7 @@ return [
     // Shared layer from core that can be reflected into downstream apps.
     'shared_paths' => [
         'app/Support',
+        'app/Http/Middleware/SetUiLocale.php',
         'app/Http/Middleware/TrackUserActivity.php',
         'app/Http/Controllers/UiOptionsController.php',
         'app/Http/Controllers/MediaManagerController.php',
@@ -15,6 +16,7 @@ return [
         'public/js/haarray.app.js',
         'public/js/haarray.js',
         'public/js/haarray.plugins.js',
+        'public/js/haarray.nepali-date.js',
         'resources/views/components',
         'resources/views/layouts/app.blade.php',
         'resources/views/layouts/haarray.blade.php',

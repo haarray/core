@@ -1,17 +1,24 @@
 @extends('layouts.app')
 
-@section('title', 'Settings')
-@section('page_title', 'Settings')
+@section('title', app()->getLocale() === 'ne' ? 'सेटिङ्स' : 'Settings')
+@section('page_title', app()->getLocale() === 'ne' ? 'सेटिङ्स' : 'Settings')
 
 @section('topbar_extra')
   <span class="h-live-badge">
     <i class="fa-solid fa-sliders"></i>
-    Settings Center
+    {{ app()->getLocale() === 'ne' ? 'सेटिङ्स केन्द्र' : 'Settings Center' }}
   </span>
 @endsection
 
 @section('content')
 @php
+  $uiLocale = app()->getLocale() === 'ne' ? 'ne' : 'en';
+  $hlText = static function (string $en, string $ne = '') use ($uiLocale): string {
+      if ($uiLocale === 'ne' && $ne !== '') {
+          return $ne;
+      }
+      return $en;
+  };
   $defaultSettingsTab = (string) request()->query('tab', 'settings-app');
   $allowedTabs = ['settings-app', 'settings-activity', 'settings-security', 'settings-notifications', 'settings-system'];
   if (!in_array($defaultSettingsTab, $allowedTabs, true)) {
@@ -26,14 +33,18 @@
   $appIconUrl = (string) ($uiBranding['app_icon_url'] ?? '');
   $notificationSoundValue = (string) ($notificationSoundUrl ?? '');
   $dbLabel = ($dbConnectionInfo['database'] ?? '') !== '' ? (string) $dbConnectionInfo['database'] : 'n/a';
+  $defaultUiLocale = \App\Support\AppSettings::get('ui.locale', app()->getLocale());
+  if (!in_array($defaultUiLocale, ['en', 'ne'], true)) {
+      $defaultUiLocale = 'en';
+  }
 @endphp
 
 <div class="hl-docs hl-settings">
   <div class="doc-head">
     <div>
-      <div class="doc-title">Settings Control Hub</div>
+      <div class="doc-title">{{ $hlText('Settings Control Hub', 'सेटिङ्स कन्ट्रोल हब') }}</div>
       <div class="doc-sub">
-        Clean starter settings for branding, activity, security, notifications, and system configuration.
+        {{ $hlText('Clean starter settings for branding, activity, security, notifications, and system configuration.', 'ब्रान्डिङ, गतिविधि, सुरक्षा, सूचना र सिस्टम कन्फिगरेसनका सेटिङहरू।') }}
       </div>
     </div>
     <span class="h-pill teal">DB: {{ $dbLabel }}</span>
@@ -41,12 +52,12 @@
 
   <div class="h-tab-shell h-settings-shell" id="settings-main-tabs" data-ui-tabs data-default-tab="{{ $defaultSettingsTab }}">
     <div class="h-tab-nav" role="tablist" aria-label="Settings sections">
-      <button type="button" class="h-tab-btn" data-tab-btn="settings-app"><i class="fa-solid fa-palette"></i> Branding</button>
-      <button type="button" class="h-tab-btn" data-tab-btn="settings-activity"><i class="fa-solid fa-chart-line"></i> Activity</button>
-      <button type="button" class="h-tab-btn" data-tab-btn="settings-security"><i class="fa-solid fa-user-shield"></i> Security</button>
-      <button type="button" class="h-tab-btn" data-tab-btn="settings-notifications"><i class="fa-solid fa-bell"></i> Notifications</button>
+      <button type="button" class="h-tab-btn" data-tab-btn="settings-app"><i class="fa-solid fa-palette"></i> {{ $hlText('Branding', 'ब्रान्डिङ') }}</button>
+      <button type="button" class="h-tab-btn" data-tab-btn="settings-activity"><i class="fa-solid fa-chart-line"></i> {{ $hlText('Activity', 'गतिविधि') }}</button>
+      <button type="button" class="h-tab-btn" data-tab-btn="settings-security"><i class="fa-solid fa-user-shield"></i> {{ $hlText('Security', 'सुरक्षा') }}</button>
+      <button type="button" class="h-tab-btn" data-tab-btn="settings-notifications"><i class="fa-solid fa-bell"></i> {{ $hlText('Notifications', 'सूचनाहरू') }}</button>
       @if($canManageSettings)
-        <button type="button" class="h-tab-btn" data-tab-btn="settings-system"><i class="fa-solid fa-gear"></i> System</button>
+        <button type="button" class="h-tab-btn" data-tab-btn="settings-system"><i class="fa-solid fa-gear"></i> {{ $hlText('System', 'सिस्टम') }}</button>
       @endif
     </div>
 
@@ -54,19 +65,19 @@
       @if($canManageSettings)
         <div class="h-card-soft mb-3">
           <div class="head">
-            <div style="font-family:var(--fd);font-size:16px;font-weight:700;">Branding, Icons, Theme</div>
-            <div class="h-muted" style="font-size:13px;">Use Media Library injection for logo/favicon/app icon/sound. No separate upload fields needed here.</div>
+            <div style="font-family:var(--fd);font-size:16px;font-weight:700;">{{ $hlText('Branding, Icons, Theme', 'ब्रान्डिङ, आइकन, थिम') }}</div>
+            <div class="h-muted" style="font-size:13px;">{{ $hlText('Use Media Library injection for logo/favicon/app icon/sound. No separate upload fields needed here.', 'लोगो/फेभिकन/एप आइकन/साउन्डका लागि मिडिया लाइब्रेरी प्रयोग गर्नुहोस्। छुट्टै अपलोड फिल्ड आवश्यक छैन।') }}</div>
           </div>
           <div class="body">
             <form method="POST" action="{{ route('settings.branding') }}" data-spa>
               @csrf
               <div class="row g-3">
-                <div class="col-md-4">
-                  <label class="h-label" style="display:block;">App Name</label>
+                <div class="col-md-3">
+                  <label class="h-label" style="display:block;">{{ $hlText('App Name', 'एप नाम') }}</label>
                   <input type="text" name="ui_display_name" class="form-control" value="{{ old('ui_display_name', $uiBranding['display_name'] ?? config('app.name')) }}" required>
                 </div>
-                <div class="col-md-4">
-                  <label class="h-label" style="display:block;">Brand Subtitle</label>
+                <div class="col-md-3">
+                  <label class="h-label" style="display:block;">{{ $hlText('Brand Subtitle', 'ब्रान्ड उपशीर्षक') }}</label>
                   <input type="text" name="ui_brand_subtitle" class="form-control" value="{{ old('ui_brand_subtitle', $uiBranding['brand_subtitle'] ?? ('by ' . config('haarray.brand_name'))) }}">
                 </div>
                 <div class="col-md-2">
@@ -74,47 +85,54 @@
                   <input type="text" name="ui_brand_mark" class="form-control" maxlength="8" value="{{ old('ui_brand_mark', $uiBranding['brand_mark'] ?? 'H') }}" required>
                 </div>
                 <div class="col-md-2">
-                  <label class="h-label" style="display:block;">Theme Color</label>
+                  <label class="h-label" style="display:block;">{{ $hlText('Theme Color', 'थिम रङ') }}</label>
                   <input type="color" name="ui_theme_color" class="form-control form-control-color" value="{{ old('ui_theme_color', $themeColor) }}">
+                </div>
+                <div class="col-md-2">
+                  <label class="h-label" style="display:block;">{{ $hlText('Default Language', 'पूर्वनिर्धारित भाषा') }}</label>
+                  <select name="ui_locale_default" class="form-select" data-h-select>
+                    <option value="en" @selected(old('ui_locale_default', $defaultUiLocale) === 'en')>{{ $hlText('English', 'अंग्रेजी') }}</option>
+                    <option value="ne" @selected(old('ui_locale_default', $defaultUiLocale) === 'ne')>{{ $hlText('Nepali', 'नेपाली') }}</option>
+                  </select>
                 </div>
 
                 <div class="col-md-6">
-                  <label class="h-label" style="display:block;">Logo URL</label>
+                  <label class="h-label" style="display:block;">{{ $hlText('Logo URL', 'लोगो URL') }}</label>
                   <div class="input-group">
                     <input type="text" name="ui_logo_url" id="ui-logo-url" class="form-control" value="{{ old('ui_logo_url', $logoUrl) }}" placeholder="/uploads/... or https://...">
                     <button type="button" class="btn btn-outline-secondary" data-media-manager-open data-media-target="ui-logo-url">
                       <i class="fa-solid fa-photo-film me-1"></i>
-                      Inject
+                      {{ $hlText('Inject', 'इनजेक्ट') }}
                     </button>
                   </div>
                 </div>
                 <div class="col-md-6">
-                  <label class="h-label" style="display:block;">Favicon URL</label>
+                  <label class="h-label" style="display:block;">{{ $hlText('Favicon URL', 'फेभिकन URL') }}</label>
                   <div class="input-group">
                     <input type="text" name="ui_favicon_url" id="ui-favicon-url" class="form-control" value="{{ old('ui_favicon_url', $faviconUrl) }}" placeholder="/uploads/... or https://...">
                     <button type="button" class="btn btn-outline-secondary" data-media-manager-open data-media-target="ui-favicon-url">
                       <i class="fa-solid fa-photo-film me-1"></i>
-                      Inject
+                      {{ $hlText('Inject', 'इनजेक्ट') }}
                     </button>
                   </div>
                 </div>
                 <div class="col-md-6">
-                  <label class="h-label" style="display:block;">App Icon URL</label>
+                  <label class="h-label" style="display:block;">{{ $hlText('App Icon URL', 'एप आइकन URL') }}</label>
                   <div class="input-group">
                     <input type="text" name="ui_app_icon_url" id="ui-app-icon-url" class="form-control" value="{{ old('ui_app_icon_url', $appIconUrl) }}" placeholder="/uploads/... or https://...">
                     <button type="button" class="btn btn-outline-secondary" data-media-manager-open data-media-target="ui-app-icon-url">
                       <i class="fa-solid fa-photo-film me-1"></i>
-                      Inject
+                      {{ $hlText('Inject', 'इनजेक्ट') }}
                     </button>
                   </div>
                 </div>
                 <div class="col-md-6">
-                  <label class="h-label" style="display:block;">Notification Sound URL</label>
+                  <label class="h-label" style="display:block;">{{ $hlText('Notification Sound URL', 'सूचना ध्वनि URL') }}</label>
                   <div class="input-group">
                     <input type="text" name="ui_notification_sound_url" id="ui-notification-sound-url" class="form-control" value="{{ old('ui_notification_sound_url', $notificationSoundValue) }}" placeholder="/uploads/... or https://...">
                     <button type="button" class="btn btn-outline-secondary" data-media-manager-open data-media-target="ui-notification-sound-url">
                       <i class="fa-solid fa-photo-film me-1"></i>
-                      Inject
+                      {{ $hlText('Inject', 'इनजेक्ट') }}
                     </button>
                   </div>
                 </div>
@@ -160,13 +178,13 @@
               </div>
 
               <div class="h-note mt-3">
-                Active DB from `.env`: <code>{{ $dbConnectionInfo['connection'] }}</code> / <code>{{ $dbConnectionInfo['database'] ?: 'n/a' }}</code>
+                {{ $hlText('Active DB from `.env`:', '`.env` बाट सक्रिय DB:') }} <code>{{ $dbConnectionInfo['connection'] }}</code> / <code>{{ $dbConnectionInfo['database'] ?: 'n/a' }}</code>
               </div>
 
               <div class="d-flex justify-content-end mt-3">
                 <button type="submit" class="btn btn-primary" data-busy-text="Saving...">
                   <i class="fa-solid fa-floppy-disk me-2"></i>
-                  Save App Settings
+                  {{ $hlText('Save App Settings', 'एप सेटिङ्स सेभ गर्नुहोस्') }}
                 </button>
               </div>
             </form>
@@ -182,12 +200,12 @@
       <div class="h-card-soft mb-3">
         <div class="head h-split">
           <div>
-            <div style="font-family:var(--fd);font-size:16px;font-weight:700;">User Activity Log</div>
-            <div class="h-muted" style="font-size:13px;">Tracks route, method, status, and user details.</div>
+            <div style="font-family:var(--fd);font-size:16px;font-weight:700;">{{ $hlText('User Activity Log', 'प्रयोगकर्ता गतिविधि लग') }}</div>
+            <div class="h-muted" style="font-size:13px;">{{ $hlText('Tracks route, method, status, and user details.', 'रुट, विधि, स्थिति र प्रयोगकर्ता विवरण ट्र्याक गर्छ।') }}</div>
           </div>
           <a href="{{ route('settings.activity.export') }}" class="btn btn-outline-secondary btn-sm">
             <i class="fa-solid fa-file-export me-2"></i>
-            Export Activity
+            {{ $hlText('Export Activity', 'गतिविधि निर्यात') }}
           </a>
         </div>
 
@@ -201,12 +219,12 @@
               data-length-menu="10,20,50,100"
               data-order-col="0"
               data-order-dir="desc"
-              data-empty-text="Empty"
+              data-empty-text="{{ $hlText('Empty', 'खाली') }}"
             >
               <thead>
                 <tr>
                   <th data-col="id">ID</th>
-                  <th data-col="created_at">Datetime</th>
+                  <th data-col="created_at" data-date="datetime">{{ $hlText('Datetime', 'मिति-समय') }}</th>
                   <th data-col="user">User</th>
                   <th data-col="method">Method</th>
                   <th data-col="path">Path</th>

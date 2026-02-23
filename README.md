@@ -33,7 +33,11 @@ Laravel starter kit for Haarray products with progressive SPA behavior, reusable
 - Notification tray actions: per-row mark-read + mark-all-read + optional custom audio
 - Global `App\\Support\\Notifier` helper for controller/job notification dispatch
 - Advanced health checker (DB/cache/storage/queue/RBAC/notifications)
-- Optional local hot reload polling (theme-safe, low bandwidth)
+- Optional local hot reload via SSE stream (no browser polling timer)
+- Shared-hosting inline automation fallback (suggestions + market refresh) without requiring queue workers
+- Built-in EN/NE language toggle in topbar with locale-aware UI clock
+- Nepali BS + English AD dual-date support (`AD | BS`) across live clock and DataTables date columns
+- Auth screens (login/register/2FA) now support EN/NE switch before login
 
 ## Tech profile
 
@@ -127,6 +131,7 @@ Served bundle:
 - `HDebug`: debug console tray + client error capture
 - `HSearch`: global search overlay
 - `HMediaManager`: global media browser/upload/picker
+- `HNepaliDate`: Bikram Sambat conversion + dual date formatter
 
 - `HConfirm`: confirmation flow for links/forms
 - `HSelect`: searchable single/multi select
@@ -187,6 +192,16 @@ php artisan haarray:starter:setup --seed-admins
 php artisan haarray:health:check
 ```
 
+### Shared hosting (no queue worker required)
+
+Inline automation is enabled by default, so key updates can run naturally during normal authenticated page requests:
+
+- `HAARRAY_INLINE_AUTOMATION=true`
+- `HAARRAY_INLINE_SUGGESTIONS_EVERY_SECONDS=900`
+- `HAARRAY_INLINE_MARKET_REFRESH_EVERY_SECONDS=3600`
+
+This reduces hard dependency on VPS-managed queue workers for core user flows.
+
 ## Running modes
 
 ### Artisan serve
@@ -232,6 +247,12 @@ If Blade cache writes fail, run the chmod commands above again.
   - `docs/tutorials/MEDIA_MANAGER.md`
   - `docs/tutorials/DEPLOYMENT_MODES.md`
   - `docs/tutorials/INTEGRATIONS_FACEBOOK_TELEGRAM.md`
+
+## Localization and dual dates
+
+- Toggle language from topbar (`EN/ने`) or auth screens before login.
+- Set default language globally from `Settings -> Branding` via `Default Language`.
+- UI dates can render as dual calendar text (`AD | BS`) for easier EN/NE usage.
 
 ## Philosophy
 

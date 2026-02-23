@@ -25,9 +25,9 @@ class DashboardController extends Controller
         ];
 
         $ipos = [
-            ['name'=>'Citizens Bank International','dates'=>'Feb 17 – Feb 19, 2026','status'=>'open',    'unit'=>100,'min'=>50],
-            ['name'=>'Nabil Microfinance Ltd',      'dates'=>'Feb 24 – Feb 28, 2026','status'=>'upcoming','unit'=>100,'min'=>10],
-            ['name'=>'Sanima DEPL Fund',             'dates'=>'Mar 3 – Mar 7, 2026',  'status'=>'upcoming','unit'=>10, 'min'=>100],
+            ['name'=>'Citizens Bank International', 'open_date'=>'2026-02-17', 'close_date'=>'2026-02-19', 'status'=>'open', 'unit'=>100, 'min'=>50],
+            ['name'=>'Nabil Microfinance Ltd', 'open_date'=>'2026-02-24', 'close_date'=>'2026-02-28', 'status'=>'upcoming', 'unit'=>100, 'min'=>10],
+            ['name'=>'Sanima DEPL Fund', 'open_date'=>'2026-03-03', 'close_date'=>'2026-03-07', 'status'=>'upcoming', 'unit'=>10, 'min'=>100],
         ];
 
         $suggestions = [
