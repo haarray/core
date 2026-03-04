@@ -1,8 +1,6 @@
 <?php
 
-return [
-    // Shared layer from core that can be reflected into downstream apps.
-    'shared_paths' => [
+$sharedPaths = [
         'app/Support',
         'app/Http/Middleware/SetUiLocale.php',
         'app/Http/Middleware/TrackUserActivity.php',
@@ -24,7 +22,21 @@ return [
         'docs',
         'server.php',
         '.htaccess',
-    ],
+];
+
+if (env('HAARRAY_REFLECT_INCLUDE_DEPENDENCIES', true)) {
+    $sharedPaths = array_merge($sharedPaths, [
+        'composer.json',
+        'composer.lock',
+        'package.json',
+        'bootstrap/app.php',
+        'bootstrap/providers.php',
+    ]);
+}
+
+return [
+    // Shared layer from core that can be reflected into downstream apps.
+    'shared_paths' => $sharedPaths,
 
     // Downstream targets.
     'targets' => [

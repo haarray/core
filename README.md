@@ -281,3 +281,19 @@ Deploy behavior:
 
 - Preserves runtime data by excluding `.env`, `storage/`, and `public/uploads/`.
 - Keeps `vendor/` out of upload and runs `composer install` server-side when composer exists.
+
+## Core -> Log reflection behavior
+
+Core pushes can auto-reflect shared files into `haarray/log` using `.github/workflows/reflect-log.yml`.
+
+By default, reflection now includes dependency/bootstrapping manifests:
+
+- `composer.json`
+- `composer.lock`
+- `package.json`
+- `bootstrap/app.php`
+- `bootstrap/providers.php`
+
+Control this via:
+
+- `HAARRAY_REFLECT_INCLUDE_DEPENDENCIES=true` (default)
