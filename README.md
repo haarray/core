@@ -266,13 +266,16 @@ Every push to `main` deploys this repository to your shared-hosting path through
 
 Required repository secrets:
 
-- `CPANEL_HOST`
-- `CPANEL_SSH_PORT` (optional, defaults to `22`)
 - `CPANEL_USER`
 - `CPANEL_SSH_PRIVATE_KEY`
 - `CORE_DEPLOY_PATH` (example: `/home8/pratikb1/core`)
 - `CORE_RUN_MIGRATIONS` (`1` or `0`)
 - `CORE_DEPLOY_DELETE` (`1` or `0`)
+
+Optional overrides:
+
+- `CPANEL_HOST` (defaults to `cpanel.pratikbhujel.com.np`)
+- `CPANEL_SSH_PORT` (defaults to `1980`)
 
 Deploy behavior:
 
